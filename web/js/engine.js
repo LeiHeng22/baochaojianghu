@@ -631,6 +631,177 @@
     return /开业|金币|稀有客人|江湖帖/.test(text) || chef.isPartialUlt;
   }
 
+  function yesMap(arr, key) {
+    var result = {};
+    (arr || []).forEach(function (item) {
+      if (!item || item.id == null) {
+        return;
+      }
+      result[item.id] = item[key] === '是';
+    });
+    return result;
+  }
+
+  function countTrue(map) {
+    return Object.keys(map || {}).filter(function (k) { return map[k]; }).length;
+  }
+
+  function mergeGot(localMap, officialMap) {
+    var next = {};
+    Object.keys(localMap || {}).forEach(function (k) {
+      if (localMap[k]) {
+        next[k] = true;
+      }
+    });
+    Object.keys(officialMap || {}).forEach(function (k) {
+      if (officialMap[k]) {
+        next[k] = true;
+      }
+    });
+    return next;
+  }
+
+  function chefUltimateMeta(raw, skillMap) {
+    var sid = raw.ultimateSkillList && raw.ultimateSkillList.length
+      ? raw.ultimateSkillList[0]
+      : raw.ultimateSkill;
+    if (sid && typeof sid === 'object') {
+      sid = sid.skillId;
+    }
+    var skill = skillMap[Number(sid)];
+    if (!skill) {
+      return null;
+    }
+    var conditions = [];
+    (skill.effect || []).forEach(function (effect) {
+      if (effect && effect.condition && conditions.indexOf(effect.condition) < 0) {
+        conditions.push(effect.condition);
+      }
+    });
+    return {
+      skillId: skill.skillId,
+      desc: String(skill.desc || ''),
+      effect: skill.effect || [],
+      condition: conditions[0] || ''
+    };
+  }
+
+  function buildUltimateFromChefUlt(data, chefUlt, decoBuff) {
+    var skillMap = skillMapOf(data);
+    var allUltimate = { Partial: { id: [], row: [] }, Self: { id: [], row: [] } };
+    var skillObj = { Stirfry: 0, Boil: 0, Knife: 0, Fry: 0, Bake: 0, Steam: 0 };
+    var globalObj = { Male: 0, Female: 0, All: 0 };
+    var priceObj = { PriceBuff_1: 0, PriceBuff_2: 0, PriceBuff_3: 0, PriceBuff_4: 0, PriceBuff_5: 0 };
+    var limitObj = { MaxLimit_1: 0, MaxLimit_2: 0, MaxLimit_3: 0, MaxLimit_4: 0, MaxLimit_5: 0 };
+
+    (data.chefs || []).forEach(function (item) {
+      if (!chefUlt[item.chefId]) {
+        return;
+      }
+      var meta = chefUltimateMeta(item, skillMap);
+      if (!meta) {
+        return;
+      }
+      var id = item.chefId + ',' + meta.skillId;
+      if (meta.condition === 'Partial' || meta.condition === 'Next') {
+        allUltimate.Partial.id.push(id);
+        allUltimate.Partial.row.push({
+          id: id,
+          name: item.name,
+          subName: meta.desc,
+          effect: meta.effect
+        });
+      }
+      if (meta.condition === 'Self') {
+        var selfEffect = meta.effect.filter(function (eff) {
+          return eff.type !== 'Material_Gain' && eff.type !== 'GuestDropCount';
+        });
+        if (selfEffect.length) {
+          allUltimate.Self.id.push(id);
+          allUltimate.Self.row.push({
+            id: id,
+            name: item.name,
+            subName: meta.desc,
+            effect: selfEffect
+          });
+        }
+      }
+      if (meta.desc.indexOf('全技法') < 0) {
+        meta.effect.forEach(function (effect) {
+          Object.keys(skillObj).forEach(function (key) {
+            if (effect.condition === 'Global' && !effect.tag && effect.type === key) {
+              skillObj[key] += toInt(effect.value, 0);
+            }
+          });
+          for (var i = 1; i < 6; i++) {
+            if (effect.type === 'UseAll' && Number(effect.rarity) === i) {
+              priceObj['PriceBuff_' + i] += toInt(effect.value, 0);
+            }
+            if (effect.type === 'MaxEquipLimit' && Number(effect.rarity) === i && effect.condition === 'Global') {
+              limitObj['MaxLimit_' + i] += toInt(effect.value, 0);
+            }
+          }
+        });
+      }
+      if (meta.desc.indexOf('全技法') > -1 && meta.effect[0] && meta.effect[0].condition === 'Global') {
+        var first = meta.effect[0];
+        var value = toInt(first.value, 0);
+        if (Number(first.tag) === 1) {
+          globalObj.Male += value;
+        } else if (Number(first.tag) === 2) {
+          globalObj.Female += value;
+        } else {
+          globalObj.All += value;
+        }
+      }
+    });
+
+    return Object.assign({ decoBuff: toInt(decoBuff, 0) }, allUltimate, skillObj, globalObj, priceObj, limitObj);
+  }
+
+  function applyOfficialArchive(user, archive, data) {
+    user = user || {};
+    archive = archive || {};
+    var officialGot = yesMap(archive.chefs, 'got');
+    var officialUlt = yesMap(archive.chefs, 'ult');
+    var officialRep = yesMap(archive.recipes, 'got');
+    var next = {};
+    Object.keys(user).forEach(function (key) {
+      next[key] = user[key];
+    });
+    next.chefGot = mergeGot(user.chefGot, officialGot);
+    next.repGot = mergeGot(user.repGot, officialRep);
+    var chefUlt = {};
+    Object.keys(user.chefUlt || {}).forEach(function (key) {
+      chefUlt[key] = user.chefUlt[key];
+    });
+    Object.keys(officialUlt).forEach(function (key) {
+      chefUlt[key] = officialUlt[key];
+    });
+    next.chefUlt = chefUlt;
+    next.userUltimate = buildUltimateFromChefUlt(data, chefUlt, archive.decorationEffect);
+    if (user.userUltimate) {
+      ['Stirfry', 'Boil', 'Knife', 'Fry', 'Bake', 'Steam', 'Male', 'Female', 'All',
+        'MaxLimit_1', 'MaxLimit_2', 'MaxLimit_3', 'MaxLimit_4', 'MaxLimit_5',
+        'PriceBuff_1', 'PriceBuff_2', 'PriceBuff_3', 'PriceBuff_4', 'PriceBuff_5'].forEach(function (key) {
+        var oldVal = toInt(user.userUltimate[key], 0);
+        var newVal = toInt(next.userUltimate[key], 0);
+        if (oldVal > newVal) {
+          next.userUltimate[key] = oldVal;
+        }
+      });
+    }
+    return {
+      user: next,
+      stats: {
+        officialChefs: countTrue(officialGot),
+        officialUlt: countTrue(officialUlt),
+        ownedChefs: countTrue(next.chefGot),
+        ownedRecipes: countTrue(next.repGot)
+      }
+    };
+  }
+
   return {
     PEOPLE: PEOPLE,
     OPEN_PEOPLE: OPEN_PEOPLE,
@@ -648,6 +819,8 @@
     analyzeOpenTeam: analyzeOpenTeam,
     isOpenChef: isOpenChef,
     teamPoints: teamPoints,
-    teamDualPoints: teamDualPoints
+    teamDualPoints: teamDualPoints,
+    applyOfficialArchive: applyOfficialArchive,
+    buildUltimateFromChefUlt: buildUltimateFromChefUlt
   };
 });

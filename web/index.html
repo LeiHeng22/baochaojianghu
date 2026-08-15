@@ -346,6 +346,7 @@
           <div class="btn-box" style="margin-top: 10px;">
             <el-input placeholder="在游戏设置页面获取校验码" v-model="userDataCode" size="mini" style="width: 180px;"></el-input>
             <span class="btn" style="line-height: 25px;" @click="syncUserData">导入数据</span>
+            <el-checkbox v-model="importAmberAndEquip">遗玉厨具数据</el-checkbox>
           </div>
         </div>
         <div class="title">个人装饰/修炼数据配置</div>
@@ -356,25 +357,148 @@
             <div class="prepend-input append-input">
               <div class="input-box">
                 <div class="prepend">装饰加成</div>
-                <input type="number" v-model.lazy="decoBuff">
+                <input type="number" v-model.lazy="userUltimate.decoBuff" @change="saveUltimate">
                 <div class="append">%</div>
               </div>
             </div>
           </div>
+          <div class="contain">
+            <div class="contain-title">单技法</div>
+            <div class="prepend-input" v-for="(val, key) in skill_map" :key="key">
+              <div class="input-box">
+                <div class="prepend">{{ val }}</div>
+                <input type="number" v-model.lazy="userUltimate[ultKey(key)]" @change="saveUltimate">
+              </div>
+            </div>
+          </div>
+          <div class="contain">
+            <div class="contain-title">全技法</div>
+            <div class="prepend-input">
+              <div class="input-box">
+                <div class="prepend">男厨</div>
+                <input type="number" v-model.lazy="userUltimate.Male" @change="saveUltimate">
+              </div>
+            </div>
+            <div class="prepend-input">
+              <div class="input-box">
+                <div class="prepend">女厨</div>
+                <input type="number" v-model.lazy="userUltimate.Female" @change="saveUltimate">
+              </div>
+            </div>
+            <div class="prepend-input">
+              <div class="input-box">
+                <div class="prepend">全体</div>
+                <input type="number" v-model.lazy="userUltimate.All" @change="saveUltimate">
+              </div>
+            </div>
+          </div>
+          <div class="contain">
+            <div class="contain-title">菜谱上限</div>
+            <div class="prepend-input" v-for="val in [1, 2, 3, 4, 5]" :key="'limit-' + val">
+              <div class="input-box">
+                <div class="prepend">{{ val }}星</div>
+                <input type="number" v-model.lazy="userUltimate['MaxLimit_' + val]" @focus="scrollUser(140)" @change="saveUltimate">
+              </div>
+            </div>
+          </div>
+          <div class="contain">
+            <div class="contain-title">菜谱售价</div>
+            <div class="prepend-input append-input" v-for="val in [1, 2, 3, 4, 5]" :key="'price-' + val">
+              <div class="input-box">
+                <div class="prepend">{{ val }}星</div>
+                <input type="number" v-model.lazy="userUltimate['PriceBuff_' + val]" @focus="scrollUser(250)" @change="saveUltimate">
+                <div class="append">%</div>
+              </div>
+            </div>
+          </div>
+          <div class="contain">
+            <div class="contain-title">特殊</div>
+            <span class="select-box" style="width: 250px; position: relative; z-index: 1003;">
+              <el-select
+                v-model="userUltimate.Partial.id"
+                multiple
+                filterable
+                collapse-tags
+                size="mini"
+                placeholder="上场类技能已修炼"
+                @focus="scrollUser(410)"
+                @change="onSkillSelect('Partial')"
+              >
+                <el-option v-for="item in partialSkillList" :key="item.id" :label="item.name + ' ' + item.subName" :value="item.id"></el-option>
+              </el-select>
+            </span>
+            <span class="select-box" style="width: 250px;">
+              <el-select
+                v-model="userUltimate.Self.id"
+                multiple
+                filterable
+                collapse-tags
+                size="mini"
+                placeholder="个人类技能已修炼"
+                @focus="scrollUser(430)"
+                @change="onSkillSelect('Self')"
+              >
+                <el-option v-for="item in selfSkillList" :key="item.id" :label="item.name + ' ' + item.subName" :value="item.id"></el-option>
+              </el-select>
+            </span>
+          </div>
           <div class="btn-box" style="padding-left: 3px;">
-            <span class="btn" @click="saveDeco">保存装饰加成</span>
+            <span class="btn" @click="setAllUltimate">全修炼</span>
+            <span class="btn" @click="setAllExistUltimate">全修炼（已有）</span>
+            <span class="btn" @click="emptyUserUltimate">清空个人数据</span>
+            <span class="btn" @click="emptyAmberData">清空遗玉数据</span>
+            <span class="btn" @click="emptyEquipData">清空厨具数据</span>
           </div>
         </div>
         <div class="title">个人数据云端暂存</div>
         <div class="hr"></div>
         <div class="box-body">
           <div class="btn-box" style="margin-top: 10px;">
-            <el-input placeholder="云端数字ID" v-model="cloudId" size="mini" style="width: 140px;"></el-input>
-            <span class="btn" @click="downloadCloud">获取云端数据</span>
+            <span class="btn" @click="uploadData">上传个人数据</span>
+            <span class="btn" @click="downloadData">获取云端数据</span>
             <span class="btn" @click="loadLocal">载入本地数据</span>
             <span class="btn" @click="updateCatalog">更新图鉴</span>
-            <span class="btn" @click="$refs.file.click()">导入个人数据文件</span>
-            <input ref="file" class="hidden" type="file" accept=".txt,.json" @change="importFile">
+            <div style="margin-top: 5px;">{{ cloudIdShow }}</div>
+          </div>
+        </div>
+        <div class="title">L版图鉴数据转移-手动复制版</div>
+        <div class="hr"></div>
+        <div class="box-body">
+          <el-input type="textarea" :rows="10" placeholder="请贴入L版图鉴的个人数据。" v-model="LDataText" @focus="scrollUser(1000)"></el-input>
+          <div class="btn-box" style="margin-top: 10px;">
+            <span class="btn" @click="importLDataText">导入L版图鉴数据</span>
+          </div>
+        </div>
+        <div class="title">L版图鉴数据转移-文件版</div>
+        <div class="hr"></div>
+        <div class="box-body">
+          <div class="btn-box" style="margin-top: 10px;">
+            <span class="btn" @click="openLFile">导入L版图鉴数据文件</span>
+            <input id="Lfile" style="display: none" type="file" accept="text/plain" @change="importLData">
+          </div>
+        </div>
+        <div class="title">个人数据备份-手动复制版</div>
+        <div class="hr"></div>
+        <div class="box-body">
+          <el-input
+            type="textarea"
+            :rows="10"
+            placeholder="请贴入备份的个人数据。（与L的网页版图鉴数据不是同一套，要导入L版数据用上面的L版图鉴数据转移功能，首次使用需自行录入修炼/装饰数据，菜谱/厨师已有数据可以自动生成，具体见首页的常见问题。）"
+            v-model="userDataText"
+            @focus="scrollUser(530)"
+          ></el-input>
+          <div class="btn-box" style="margin-top: 10px;">
+            <span class="btn" @click="exportUserDataText">生成个人数据</span>
+            <span class="btn" @click="importUserDataText">导入个人数据</span>
+          </div>
+        </div>
+        <div class="title">个人数据备份-文件版（有的浏览器不支持）</div>
+        <div class="hr"></div>
+        <div class="box-body">
+          <div class="btn-box" style="margin-top: 10px;">
+            <span class="btn" @click="exportUserData">下载个人数据文件</span>
+            <span class="btn" @click="openFile">导入个人数据文件</span>
+            <input id="file" style="display: none" type="file" accept="text/plain,.json" @change="importUserData">
           </div>
         </div>
       </div>
@@ -385,7 +509,7 @@
         <div class="title">{{ navTitle }}</div>
         <div class="hr"></div>
         <div class="box-body">
-          <div class="p">此页与白菜菊花一致的完整功能仍在对照中。厨师 / 厨具 / 遗玉 / 计算器 / 探索 / 个人已经按原站元素接好。</div>
+          <div class="p">此页与白菜菊花一致的完整功能仍在对照中。厨师 / 厨具 / 遗玉 / 计算器 / 探索 / 个人已经按原站接好。</div>
           <div class="p">探索在左侧【探索】；开业在【计算器】。</div>
         </div>
       </div>

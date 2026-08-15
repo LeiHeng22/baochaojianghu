@@ -98,6 +98,34 @@ async function handleApi(req, res) {
       sendJson(res, 200, { ok: true, user: user, name: rst.user || '' });
       return;
     }
+    if (req.method === 'POST' && url.pathname === '/api/cloud-upload') {
+      const body = JSON.parse(await readBody(req, 8 * 1024 * 1024));
+      const name = String(body.user || '').trim();
+      if (!name || name.length > 10) {
+        sendJson(res, 400, { ok: false, msg: '昵称字数在1~10个之间' });
+        return;
+      }
+      const data = typeof body.data === 'string' ? body.data : JSON.stringify(body.data || {});
+      const params = new URLSearchParams();
+      params.set('user', name);
+      params.set('data', data);
+      const resp = await fetch('https://bcjh.xyz/api/upload_data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8' },
+        body: params.toString()
+      });
+      if (!resp.ok) {
+        sendJson(res, 502, { ok: false, msg: '云端 HTTP ' + resp.status });
+        return;
+      }
+      const rst = await resp.json();
+      if (!rst || !rst.result) {
+        sendJson(res, 400, { ok: false, msg: (rst && rst.msg) || '上传失败' });
+        return;
+      }
+      sendJson(res, 200, { ok: true, id: rst.insertId });
+      return;
+    }
     sendJson(res, 404, { ok: false, msg: 'unknown api' });
   } catch (err) {
     logError('api ' + url.pathname, err);

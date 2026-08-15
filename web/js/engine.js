@@ -820,6 +820,68 @@
     return Object.assign({ decoBuff: toInt(decoBuff, 0) }, allUltimate, skillObj, globalObj, priceObj, limitObj);
   }
 
+  function emptyUserUltimate(decoBuff) {
+    return {
+      decoBuff: toInt(decoBuff, 0),
+      Stirfry: 0,
+      Boil: 0,
+      Knife: 0,
+      Fry: 0,
+      Bake: 0,
+      Steam: 0,
+      Male: 0,
+      Female: 0,
+      All: 0,
+      MaxLimit_1: 0,
+      MaxLimit_2: 0,
+      MaxLimit_3: 0,
+      MaxLimit_4: 0,
+      MaxLimit_5: 0,
+      PriceBuff_1: 0,
+      PriceBuff_2: 0,
+      PriceBuff_3: 0,
+      PriceBuff_4: 0,
+      PriceBuff_5: 0,
+      Partial: { id: [], row: [] },
+      Self: { id: [], row: [] }
+    };
+  }
+
+  function listUltimateOptions(data) {
+    var skillMap = skillMapOf(data);
+    var partial = [];
+    var self = [];
+    (data.chefs || []).forEach(function (item) {
+      var meta = chefUltimateMeta(item, skillMap);
+      if (!meta) {
+        return;
+      }
+      var id = item.chefId + ',' + meta.skillId;
+      if (meta.condition === 'Partial' || meta.condition === 'Next') {
+        partial.push({
+          id: id,
+          name: item.name,
+          subName: meta.desc,
+          effect: meta.effect
+        });
+      }
+      if (meta.condition === 'Self') {
+        var selfEffect = (meta.effect || []).filter(function (eff) {
+          return eff.type !== 'Material_Gain' && eff.type !== 'GuestDropCount';
+        });
+        if (selfEffect.length) {
+          self.push({
+            id: id,
+            name: item.name,
+            subName: meta.desc,
+            effect: selfEffect
+          });
+        }
+      }
+    });
+    return { partial: partial, self: self };
+  }
+
   function applyOfficialArchive(user, archive, data) {
     user = user || {};
     archive = archive || {};
@@ -1005,6 +1067,8 @@
     teamDualPoints: teamDualPoints,
     applyOfficialArchive: applyOfficialArchive,
     buildUltimateFromChefUlt: buildUltimateFromChefUlt,
+    emptyUserUltimate: emptyUserUltimate,
+    listUltimateOptions: listUltimateOptions,
     imageUrl: imageUrl,
     AMBER_COLORS: AMBER_COLORS,
     buildAmberCatalog: buildAmberCatalog,

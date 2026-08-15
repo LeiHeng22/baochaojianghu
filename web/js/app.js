@@ -38,7 +38,36 @@
         dataStatus: '尚未载入数据',
         userDataCode: '',
         cloudId: '',
+        cloudIdShow: '',
         decoBuff: 0,
+        importAmberAndEquip: true,
+        userDataText: '',
+        LDataText: '',
+        syncingUltimate: false,
+        userUltimate: {
+          decoBuff: 0,
+          Stirfry: 0,
+          Boil: 0,
+          Knife: 0,
+          Fry: 0,
+          Bake: 0,
+          Steam: 0,
+          Male: 0,
+          Female: 0,
+          All: 0,
+          MaxLimit_1: 0,
+          MaxLimit_2: 0,
+          MaxLimit_3: 0,
+          MaxLimit_4: 0,
+          MaxLimit_5: 0,
+          PriceBuff_1: 0,
+          PriceBuff_2: 0,
+          PriceBuff_3: 0,
+          PriceBuff_4: 0,
+          PriceBuff_5: 0,
+          Partial: { id: [], row: [] },
+          Self: { id: [], row: [] }
+        },
         pickerTitle: '选择',
         pickerKeyword: '',
         pickerKind: '',
@@ -196,8 +225,17 @@
           return '还没有方案┑(￣Д ￣)┍';
         }
         var analysis = E.analyzeOpenTeam(chefs);
-        var deco = E.toInt(this.decoBuff, 0);
+        var deco = E.toInt(this.userUltimate && this.userUltimate.decoBuff, 0);
         return '开业时间 ' + analysis.total.openTime + '%　金币 ' + (analysis.total.gold + deco) + '%　稀客 ' + analysis.total.guest + '%　装饰 ' + deco + '%';
+      },
+      ultimateOptions: function () {
+        return this.data ? E.listUltimateOptions(this.data) : { partial: [], self: [] };
+      },
+      partialSkillList: function () {
+        return this.ultimateOptions.partial;
+      },
+      selfSkillList: function () {
+        return this.ultimateOptions.self;
       },
       gatherPreviewHtml: function () {
         var area = E.findArea(this.gatherArea);
@@ -335,7 +373,10 @@
         var owned = this.chefs.filter(function (c) { return c.got; }).length;
         var recipes = Object.keys(this.user.repGot || {}).filter(function (k) { return this.user.repGot[k]; }.bind(this)).length;
         this.dataStatus = '已有厨师 ' + owned + ' / ' + this.chefs.length + ' · 菜谱 ' + recipes;
-        this.decoBuff = E.toInt(this.user.userUltimate && this.user.userUltimate.decoBuff, 0);
+        if (!this.syncingUltimate) {
+          this.userUltimate = this.normalizeUltimate(this.user.userUltimate);
+        }
+        this.decoBuff = E.toInt(this.userUltimate.decoBuff, 0);
       },
       setUser: function (user) {
         this.user = user;
@@ -441,10 +482,17 @@
             return rst;
           });
         }).then(function (rst) {
-          that.setUser(rst.user);
-          that.checkNav(2);
-          that.saveUserToDisk(rst.user);
-          that.toast('已导入【' + (rst.name || '云端') + '】');
+          var next = that.applyImportedUser(rst.user);
+          that.$confirm('是否确定导入【' + (rst.name || '云端') + '】的个人数据？ 如果是导入他人数据，记得 先保存好自己的个人数据 ！', '提示', {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'info'
+          }).then(function () {
+            that.setUser(next);
+            that.checkNav(2);
+            that.saveUserToDisk(next);
+            that.toast('已导入【' + (rst.name || '云端') + '】');
+          }).catch(function () {});
         }).catch(function (err) {
           logError('downloadCloud', err);
           that.toast('云端导入失败：' + (err.message || err));
@@ -469,6 +517,291 @@
         });
       },
       importFile: function (event) {
+        this.importUserData(event);
+      },
+      ultKey: function (key) {
+        return String(key || '').charAt(0).toUpperCase() + String(key || '').slice(1);
+      },
+      normalizeUltimate: function (src) {
+        var next = E.emptyUserUltimate(0);
+        src = src || {};
+        Object.keys(next).forEach(function (key) {
+          if (key === 'Partial' || key === 'Self') {
+            var block = src[key] || {};
+            next[key] = {
+              id: Array.isArray(block.id) ? block.id.slice() : [],
+              row: Array.isArray(block.row) ? block.row.slice() : []
+            };
+          } else if (src[key] !== undefined && src[key] !== '') {
+            next[key] = E.toInt(src[key], 0);
+          }
+        });
+        return next;
+      },
+      applyImportedUser: function (raw) {
+        if (!raw || typeof raw !== 'object') {
+          throw new Error('不是个人数据');
+        }
+        if (!raw.chefGot && !raw.repGot && !raw.userUltimate) {
+          throw new Error('不是白菜菊花 userData');
+        }
+        var current = this.user || {};
+        return {
+          chefGot: raw.chefGot || {},
+          chefUlt: raw.chefUlt || current.chefUlt || {},
+          repGot: raw.repGot || {},
+          chefAmber: raw.chefAmber || current.chefAmber || {},
+          chefEquip: raw.chefEquip || current.chefEquip || {},
+          chefDiskLv: raw.chefDiskLv || current.chefDiskLv || {},
+          userUltimate: this.normalizeUltimate(raw.userUltimate || {})
+        };
+      },
+      saveUltimate: function () {
+        if (!this.user) {
+          return;
+        }
+        this.user.userUltimate = this.normalizeUltimate(this.userUltimate);
+        this.decoBuff = E.toInt(this.user.userUltimate.decoBuff, 0);
+        this.syncingUltimate = true;
+        this.setUser(this.user);
+        this.saveUserToDisk(this.user);
+        this.syncingUltimate = false;
+      },
+      onSkillSelect: function (kind) {
+        var list = kind === 'Partial' ? this.partialSkillList : this.selfSkillList;
+        var map = {};
+        list.forEach(function (item) {
+          map[item.id] = item;
+        });
+        var ids = (this.userUltimate[kind] && this.userUltimate[kind].id) || [];
+        this.userUltimate[kind].row = ids.map(function (id) {
+          return map[id];
+        }).filter(Boolean);
+        this.saveUltimate();
+      },
+      scrollUser: function (val) {
+        var box = document.querySelector('.ultimate-box');
+        if (box) {
+          box.scrollTop = val;
+        }
+      },
+      getCloudId: function () {
+        try {
+          var raw = window.localStorage.getItem('bcjh-cloud-id-v1');
+          if (!raw) {
+            this.cloudIdShow = '';
+            return;
+          }
+          var cloud = JSON.parse(raw);
+          var age = Date.now() - new Date(cloud.time).getTime();
+          this.cloudIdShow = age < 86400000 ? ('本机上次上传个人数据ID：' + cloud.id) : '';
+          if (cloud.id) {
+            this.cloudId = String(cloud.id);
+          }
+        } catch (err) {
+          logError('getCloudId', err);
+          this.cloudIdShow = '';
+        }
+      },
+      confirmDanger: function (text) {
+        return this.$confirm(text, '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        });
+      },
+      setAllUltimate: function () {
+        var that = this;
+        if (!this.data || !this.user) {
+          this.toast('先载入图鉴和个人数据');
+          return;
+        }
+        this.confirmDanger('是否确定导入全修炼数据？此操作会覆盖原有修炼数据且不能恢复').then(function () {
+          var chefUlt = {};
+          (that.data.chefs || []).forEach(function (item) {
+            chefUlt[item.chefId] = true;
+          });
+          that.user.chefUlt = chefUlt;
+          that.user.userUltimate = E.buildUltimateFromChefUlt(that.data, chefUlt, that.userUltimate.decoBuff);
+          that.setUser(that.user);
+          that.saveUserToDisk(that.user);
+          that.toast('已设为全修炼');
+        }).catch(function () {});
+      },
+      setAllExistUltimate: function () {
+        var that = this;
+        if (!this.data || !this.user) {
+          this.toast('先载入图鉴和个人数据');
+          return;
+        }
+        this.confirmDanger('是否确定将已有厨师全部设为已修炼？此操作会覆盖原有修炼数据且不能恢复').then(function () {
+          that.user.chefUlt = Object.assign({}, that.user.chefGot || {});
+          that.user.userUltimate = E.buildUltimateFromChefUlt(that.data, that.user.chefUlt, that.userUltimate.decoBuff);
+          that.setUser(that.user);
+          that.saveUserToDisk(that.user);
+          that.toast('已有厨师已全部设为修炼');
+        }).catch(function () {});
+      },
+      emptyUserUltimate: function () {
+        var that = this;
+        if (!this.user) {
+          this.toast('先导入个人数据');
+          return;
+        }
+        this.confirmDanger('是否确定清空个人修炼数据？此操作会清空原有修炼/装饰加成数据且不能恢复（不影响已有厨师菜谱数据）').then(function () {
+          that.user.chefUlt = {};
+          that.user.userUltimate = E.emptyUserUltimate(0);
+          that.setUser(that.user);
+          that.saveUserToDisk(that.user);
+          that.toast('个人修炼数据已清空');
+        }).catch(function () {});
+      },
+      emptyAmberData: function () {
+        var that = this;
+        if (!this.user) {
+          this.toast('先导入个人数据');
+          return;
+        }
+        this.confirmDanger('是否确定清空遗玉数据？此操作不能恢复').then(function () {
+          that.user.chefAmber = {};
+          that.setUser(that.user);
+          that.saveUserToDisk(that.user);
+          that.toast('遗玉数据已清空');
+        }).catch(function () {});
+      },
+      emptyEquipData: function () {
+        var that = this;
+        if (!this.user) {
+          this.toast('先导入个人数据');
+          return;
+        }
+        this.confirmDanger('是否确定清空厨具数据？此操作不能恢复').then(function () {
+          that.user.chefEquip = {};
+          that.setUser(that.user);
+          that.saveUserToDisk(that.user);
+          that.toast('厨具数据已清空');
+        }).catch(function () {});
+      },
+      uploadData: function () {
+        var that = this;
+        if (!this.user) {
+          this.toast('先导入个人数据');
+          return;
+        }
+        this.$prompt('数据暂存时限为24小时，单用户24小时上传上限为10次，所有用户24小时上传上限为5000次。 请勿无节制上传！ 请在下面填入昵称（随便填，只是核对用，防止误导入别人的数据）：', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          inputPattern: /^.{1,10}$/,
+          inputErrorMessage: '昵称字数在1~10个之间'
+        }).then(function (rst) {
+          var name = String(rst.value || '').trim();
+          that.saveUltimate();
+          return fetch('/api/cloud-upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json; charset=utf-8' },
+            body: JSON.stringify({ user: name, data: JSON.stringify(that.user) })
+          }).then(function (res) {
+            return res.json().then(function (body) {
+              if (!res.ok || !body.ok) {
+                throw new Error((body && body.msg) || ('HTTP ' + res.status));
+              }
+              return body;
+            });
+          });
+        }).then(function (body) {
+          if (!body) {
+            return;
+          }
+          try {
+            window.localStorage.setItem('bcjh-cloud-id-v1', JSON.stringify({ id: body.id, time: new Date() }));
+          } catch (err) {
+            logError('save cloudId', err);
+          }
+          that.getCloudId();
+          that.$notify({
+            title: '上传成功',
+            message: '数据ID：' + body.id + ' 获取云端数据时数据ID是唯一的识别码，请务必保管好您的数据ID！',
+            duration: 0
+          });
+        }).catch(function (err) {
+          if (!err || err === 'cancel') {
+            return;
+          }
+          logError('uploadData', err);
+          that.toast('上传失败：' + (err.message || err) + '。GitHub Pages 请用下方备份');
+        });
+      },
+      downloadData: function () {
+        var that = this;
+        this.$prompt('请填写数据ID（需要先上传个人数据才能通过ID获取暂存的数据）：', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          inputPattern: /^\d{1,10}$/,
+          inputErrorMessage: '数据ID为10位以下的纯数字',
+          inputValue: this.cloudId
+        }).then(function (rst) {
+          that.cloudId = String(rst.value || '').trim();
+          that.downloadCloud();
+        }).catch(function () {});
+      },
+      exportUserDataText: function () {
+        if (!this.user) {
+          this.toast('先导入个人数据');
+          return;
+        }
+        this.saveUltimate();
+        this.userDataText = JSON.stringify(this.user);
+        this.toast('已生成，可复制文本框内容');
+      },
+      importUserDataText: function () {
+        try {
+          var raw = JSON.parse(this.userDataText || '');
+          var user = this.applyImportedUser(raw);
+          this.setUser(user);
+          this.saveUserToDisk(user);
+          this.userDataText = '';
+          this.toast('导入成功');
+        } catch (err) {
+          logError('importUserDataText', err);
+          this.toast('导入失败：数据解析失败');
+        }
+      },
+      exportUserData: function () {
+        if (!this.user) {
+          this.toast('先导入个人数据');
+          return;
+        }
+        this.saveUltimate();
+        try {
+          var text = JSON.stringify(this.user);
+          var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'userData.json';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(function () {
+            URL.revokeObjectURL(a.href);
+          }, 1000);
+        } catch (err) {
+          logError('exportUserData', err);
+          this.toast('下载失败，请改用手动复制');
+        }
+      },
+      openFile: function () {
+        var input = document.getElementById('file');
+        if (input) {
+          input.click();
+        }
+      },
+      openLFile: function () {
+        var input = document.getElementById('Lfile');
+        if (input) {
+          input.click();
+        }
+      },
+      importUserData: function (event) {
         var that = this;
         var file = event.target.files && event.target.files[0];
         if (!file) {
@@ -477,15 +810,73 @@
         var reader = new FileReader();
         reader.onload = function () {
           try {
-            var user = JSON.parse(String(reader.result || ''));
-            if (!user.chefGot) {
-              throw new Error('不是白菜菊花 userData');
-            }
+            var raw = JSON.parse(String(reader.result || ''));
+            var user = that.applyImportedUser(raw);
             that.setUser(user);
             that.saveUserToDisk(user);
             that.toast('导入成功');
           } catch (err) {
-            logError('importFile', err);
+            logError('importUserData', err);
+            that.toast('导入失败');
+          }
+        };
+        reader.onerror = function () {
+          logError('FileReader', reader.error);
+          that.toast('读取文件失败');
+        };
+        reader.readAsText(file, 'utf-8');
+        event.target.value = '';
+      },
+      importLPayload: function (data) {
+        if (!this.data) {
+          throw new Error('图鉴还没载入');
+        }
+        if (!data || !data.chefs) {
+          throw new Error('不是L版图鉴数据');
+        }
+        var keep = this.user || {};
+        var blank = {
+          chefGot: {},
+          chefUlt: {},
+          repGot: {},
+          chefAmber: keep.chefAmber || {},
+          chefEquip: keep.chefEquip || {},
+          chefDiskLv: keep.chefDiskLv || {},
+          userUltimate: {}
+        };
+        var result = E.applyOfficialArchive(blank, {
+          recipes: data.recipes,
+          chefs: data.chefs,
+          decorationEffect: data.decorationEffect
+        }, this.data);
+        this.setUser(result.user);
+        this.saveUserToDisk(result.user);
+      },
+      importLDataText: function () {
+        try {
+          var data = JSON.parse(this.LDataText || '');
+          this.importLPayload(data);
+          this.LDataText = '';
+          this.toast('导入成功');
+        } catch (err) {
+          logError('importLDataText', err);
+          this.toast('导入失败：数据解析失败');
+        }
+      },
+      importLData: function (event) {
+        var that = this;
+        var file = event.target.files && event.target.files[0];
+        if (!file) {
+          return;
+        }
+        var reader = new FileReader();
+        reader.onload = function () {
+          try {
+            var data = JSON.parse(String(reader.result || ''));
+            that.importLPayload(data);
+            that.toast('导入成功');
+          } catch (err) {
+            logError('importLData', err);
             that.toast('导入失败');
           }
         };
@@ -497,14 +888,7 @@
         event.target.value = '';
       },
       saveDeco: function () {
-        if (!this.user) {
-          this.toast('先导入个人数据');
-          return;
-        }
-        this.user.userUltimate = this.user.userUltimate || {};
-        this.user.userUltimate.decoBuff = E.toInt(this.decoBuff, 0);
-        this.setUser(this.user);
-        this.saveUserToDisk(this.user);
+        this.saveUltimate();
         this.toast('装饰加成已保存');
       },
       openPicker: function (kind, index, slot) {
@@ -589,6 +973,7 @@
     mounted: function () {
       var that = this;
       this.restore();
+      this.getCloudId();
       window.addEventListener('resize', function () {
         that.boxHeight = window.innerHeight - 50;
         that.tableHeight = window.innerHeight - 122;

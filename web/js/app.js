@@ -5,6 +5,7 @@
   var STORAGE_KEY = 'bcjh-lineup-v1';
   var USER_KEY = 'bcjh-user-v1';
   var TITLES = {
+    home: '首页',
     chefs: '厨师',
     equips: '厨具',
     ambers: '遗玉',
@@ -12,6 +13,16 @@
     gather: '探索',
     user: '个人'
   };
+  var CHEF_COLS = [
+    { key: 'img', name: '图', on: true },
+    { key: 'name', name: '厨师', on: true },
+    { key: 'skill', name: '技能', on: true },
+    { key: 'gather', name: '采集', on: true },
+    { key: 'equip', name: '厨具', on: true },
+    { key: 'amber', name: '遗玉', on: true },
+    { key: 'origin', name: '来源', on: false },
+    { key: 'got', name: '已有', on: true }
+  ];
 
   var state = {
     data: null,
@@ -20,15 +31,22 @@
     chefMap: {},
     ambers: [],
     equips: [],
-    mode: 'chefs',
+    mode: 'home',
+    pageSize: 20,
+    pages: { chefs: 1, equips: 1, ambers: 1 },
+    chefCols: CHEF_COLS.map(function (c) { return { key: c.key, name: c.name, on: c.on }; }),
+    chefStars: { 1: true, 2: true, 3: true, 4: true, 5: true },
+    chefGotOnly: true,
+    chefExtra: { aura: false, ult: false },
+    equipStars: { 1: true, 2: true, 3: true },
+    amberColors: { 1: true, 2: true, 3: true },
     openPresets: [{ id: 'default', name: '默认开业', slots: [null, null, null] }],
     activeOpenId: 'default',
     gatherTeams: {},
     gatherGroup: 'veg',
     gatherArea: '鸡舍',
     pickTarget: null,
-    selectedChefId: null,
-    equipPage: 0
+    selectedChefId: null
   };
 
   var els = {
@@ -37,6 +55,10 @@
     aside: document.getElementById('aside'),
     navMask: document.getElementById('navMask'),
     btnNav: document.getElementById('btnNav'),
+    btnSetting: document.getElementById('btnSetting'),
+    settingPop: document.getElementById('settingPop'),
+    pageSize: document.getElementById('pageSize'),
+    homePane: document.getElementById('homePane'),
     chefsPane: document.getElementById('chefsPane'),
     equipsPane: document.getElementById('equipsPane'),
     ambersPane: document.getElementById('ambersPane'),
@@ -44,17 +66,24 @@
     gatherPane: document.getElementById('gatherPane'),
     userPane: document.getElementById('userPane'),
     chefKeyword: document.getElementById('chefKeyword'),
-    chefFilter: document.getElementById('chefFilter'),
-    chefCount: document.getElementById('chefCount'),
+    chefGotOnly: document.getElementById('chefGotOnly'),
     chefTable: document.getElementById('chefTable'),
+    chefHead: document.getElementById('chefHead'),
+    chefPager: document.getElementById('chefPager'),
+    chefColsBtn: document.getElementById('chefColsBtn'),
+    chefFilterBtn: document.getElementById('chefFilterBtn'),
+    chefColsPop: document.getElementById('chefColsPop'),
+    chefFilterPop: document.getElementById('chefFilterPop'),
     equipKeyword: document.getElementById('equipKeyword'),
-    equipRarity: document.getElementById('equipRarity'),
-    equipCount: document.getElementById('equipCount'),
     equipTable: document.getElementById('equipTable'),
+    equipPager: document.getElementById('equipPager'),
+    equipFilterBtn: document.getElementById('equipFilterBtn'),
+    equipFilterPop: document.getElementById('equipFilterPop'),
     amberKeyword: document.getElementById('amberKeyword'),
-    amberColor: document.getElementById('amberColor'),
-    amberCount: document.getElementById('amberCount'),
     amberTable: document.getElementById('amberTable'),
+    amberPager: document.getElementById('amberPager'),
+    amberFilterBtn: document.getElementById('amberFilterBtn'),
+    amberFilterPop: document.getElementById('amberFilterPop'),
     openPreset: document.getElementById('openPreset'),
     openSlots: document.getElementById('openSlots'),
     openPreview: document.getElementById('openPreview'),
@@ -156,7 +185,10 @@
         gatherTeams: state.gatherTeams,
         gatherGroup: state.gatherGroup,
         gatherArea: state.gatherArea,
-        mode: state.mode
+        mode: state.mode,
+        pageSize: state.pageSize,
+        chefCols: state.chefCols,
+        chefGotOnly: state.chefGotOnly
       }));
     } catch (err) {
       logError('persist', err);
@@ -191,6 +223,15 @@
       if (saved.mode && TITLES[saved.mode]) {
         state.mode = saved.mode;
       }
+      if (saved.pageSize) {
+        state.pageSize = Number(saved.pageSize) || 20;
+      }
+      if (saved.chefCols && saved.chefCols.length) {
+        state.chefCols = saved.chefCols;
+      }
+      if (typeof saved.chefGotOnly === 'boolean') {
+        state.chefGotOnly = saved.chefGotOnly;
+      }
     } catch (err) {
       logError('restore', err);
     }
@@ -200,7 +241,7 @@
     if (!state.data || !state.user) {
       return;
     }
-    state.chefs = E.buildOwnedChefs(state.data, state.user);
+    state.chefs = E.buildAllChefs(state.data, state.user);
     state.chefMap = {};
     state.chefs.forEach(function (c) {
       state.chefMap[c.id] = c;
@@ -214,7 +255,8 @@
     state.ambers = E.buildAmberCatalog(state.data, state.user);
     state.equips = E.buildEquipCatalog(state.data, state.user);
     var recipeCount = Object.keys(state.user.repGot || {}).filter(function (k) { return state.user.repGot[k]; }).length;
-    els.dataStatus.textContent = '厨师 ' + state.chefs.length + ' · 菜谱 ' + recipeCount;
+    var owned = state.chefs.filter(function (c) { return c.got; }).length;
+    els.dataStatus.textContent = '已有厨师 ' + owned + ' / ' + state.chefs.length + ' · 菜谱 ' + recipeCount;
     if (els.decoBuff) {
       els.decoBuff.value = E.toInt(state.user.userUltimate && state.user.userUltimate.decoBuff, 0);
     }
@@ -339,7 +381,7 @@
       toast('先填写游戏里的校验码');
       return;
     }
-    setBusy(els.btnOfficial, true, '从游戏导入', '导入中…');
+        setBusy(els.btnOfficial, true, '导入数据', '导入中…');
     ensureData().then(function () {
       return fetch('https://yx518.com/api/archive.do?token=' + encodeURIComponent(token)).then(function (res) {
         if (!res.ok) {
@@ -363,7 +405,7 @@
       logError('importOfficial', err);
       toast('导入失败：' + (err.message || err));
     }).then(function () {
-      setBusy(els.btnOfficial, false, '从游戏导入', '导入中…');
+      setBusy(els.btnOfficial, false, '导入数据', '导入中…');
     });
   }
 
@@ -373,7 +415,7 @@
       toast('云端ID须为10位以内数字');
       return;
     }
-    setBusy(els.btnCloud, true, '云端导入', '导入中…');
+        setBusy(els.btnCloud, true, '获取云端数据', '导入中…');
     ensureData().then(function () {
       return fetch('/api/cloud?id=' + encodeURIComponent(id)).then(function (res) {
         return res.json().then(function (rst) {
@@ -397,7 +439,7 @@
       logError('importCloud', err);
       toast('云端导入失败：' + (err.message || err));
     }).then(function () {
-      setBusy(els.btnCloud, false, '云端导入', '导入中…');
+      setBusy(els.btnCloud, false, '获取云端数据', '导入中…');
     });
   }
 
@@ -426,37 +468,79 @@
     });
   }
 
+  function ownedChefs() {
+    return state.chefs.filter(function (c) { return c.got; });
+  }
+
+  function matchKeyword(blob, keyword) {
+    var text = String(blob || '');
+    var words = String(keyword || '').trim().split(/\s+/).filter(Boolean);
+    if (!words.length) {
+      return true;
+    }
+    return words.some(function (word) { return text.indexOf(word) >= 0; });
+  }
+
+  function pageSlice(list, key) {
+    var size = state.pageSize;
+    var page = state.pages[key] || 1;
+    var total = Math.max(1, Math.ceil(list.length / size));
+    if (page > total) {
+      page = total;
+      state.pages[key] = page;
+    }
+    return {
+      rows: list.slice((page - 1) * size, page * size),
+      page: page,
+      total: total,
+      count: list.length
+    };
+  }
+
+  function renderPager(el, key, info) {
+    if (!el) {
+      return;
+    }
+    el.innerHTML = [
+      '<span class="cur">' + info.count + ' 条</span>',
+      '<button type="button" data-page="' + (info.page - 1) + '" data-key="' + key + '"' + (info.page <= 1 ? ' disabled' : '') + '>上一页</button>',
+      '<span>' + info.page + ' / ' + info.total + '</span>',
+      '<button type="button" data-page="' + (info.page + 1) + '" data-key="' + key + '"' + (info.page >= info.total ? ' disabled' : '') + '>下一页</button>'
+    ].join('');
+  }
+
+  function colOn(key) {
+    var col = state.chefCols.find(function (c) { return c.key === key; });
+    return !col || col.on;
+  }
+
   function filteredChefs() {
-    var keyword = (els.chefKeyword.value || '').trim();
-    var filter = els.chefFilter.value;
+    var keyword = els.chefKeyword.value || '';
     return state.chefs.filter(function (chef) {
-      if (filter === 'aura' && !chef.isPartialUlt) {
+      if (state.chefGotOnly && !chef.got) {
         return false;
       }
-      if (filter === 'ult' && !chef.isSelfUlt && !chef.isPartialUlt) {
+      if (!state.chefStars[chef.rarity]) {
         return false;
       }
-      if (filter === 'open' && !E.isOpenChef(chef) && !chef.isPartialUlt) {
+      if (state.chefExtra.aura && !chef.isPartialUlt) {
         return false;
       }
-      if (filter === 'gather') {
-        var total = chef.gather.meat + chef.gather.fish + chef.gather.veg + chef.gather.creation;
-        if (total < 6 && E.expectation(chef, 'meat') < 4 && !chef.isPartialUlt) {
-          return false;
-        }
-      }
-      if (!keyword) {
-        return true;
+      if (state.chefExtra.ult && !chef.isSelfUlt && !chef.isPartialUlt) {
+        return false;
       }
       var blob = [chef.name, chef.skillDesc, chef.ultimateDesc, chef.origin, chef.equipName].concat(chef.amberNames || []).join(' ');
-      return blob.indexOf(keyword) >= 0;
+      return matchKeyword(blob, keyword);
     });
   }
 
   function renderChefTable() {
-    var list = filteredChefs();
-    els.chefCount.textContent = list.length + ' / ' + state.chefs.length;
-    els.chefTable.innerHTML = list.map(function (chef) {
+    var info = pageSlice(filteredChefs(), 'chefs');
+    var heads = state.chefCols.filter(function (c) { return c.on; }).map(function (c, i) {
+      return '<th' + (i === 0 ? ' class="fix"' : '') + '>' + c.name + '</th>';
+    }).join('');
+    els.chefHead.innerHTML = '<tr>' + heads + '</tr>';
+    els.chefTable.innerHTML = info.rows.map(function (chef) {
       var g = chef.gather;
       var ambers = (chef.amberSlots || []).map(function (slot) {
         if (!slot.id) {
@@ -464,36 +548,49 @@
         }
         return '<span class="tag ' + ({ 红: 'red', 绿: 'green', 蓝: 'blue' }[slot.color] || 'gray') + '">' + escapeHtml(slot.name) + '</span>';
       }).join('');
-      return [
-        '<tr data-chef="' + chef.id + '">',
-        '<td><img class="thumb" src="' + chef.img + '" alt=""></td>',
-        '<td><div class="name">' + escapeHtml(chef.name) + '</div><div class="stars">' + stars(chef.rarity) + '</div><div class="sub">' + (chef.isPartialUlt ? '光环' : (chef.isSelfUlt ? '已修炼' : '未修炼')) + ' · 盘' + chef.diskLv + '</div></td>',
-        '<td>' + escapeHtml(chef.skillDesc || '') + (chef.ultimateDesc ? '<div class="sub">' + escapeHtml(chef.ultimateDesc) + '</div>' : '') + '</td>',
-        '<td>肉' + g.meat + ' 鱼' + g.fish + ' 菜' + g.veg + ' 面' + g.creation + '</td>',
-        '<td>' + escapeHtml(chef.equipName || '未装备') + (chef.equipDesc ? '<div class="sub">' + escapeHtml(chef.equipDesc) + '</div>' : '') + '</td>',
-        '<td>' + (ambers || '无') + '</td>',
-        '</tr>'
-      ].join('');
-    }).join('') || '<tr><td colspan="6">没有符合条件的厨师。</td></tr>';
+      var cells = [];
+      if (colOn('img')) {
+        cells.push('<td class="fix"><img class="thumb" src="' + chef.img + '" alt=""></td>');
+      }
+      if (colOn('name')) {
+        cells.push('<td><div class="name">' + escapeHtml(chef.name) + '</div><div class="stars">' + stars(chef.rarity) + '</div><div class="sub">' + (chef.isPartialUlt ? '光环' : (chef.isSelfUlt ? '已修炼' : '未修炼')) + ' · 盘' + chef.diskLv + '</div></td>');
+      }
+      if (colOn('skill')) {
+        cells.push('<td>' + escapeHtml(chef.skillDesc || '') + (chef.ultimateDesc ? '<div class="sub">' + escapeHtml(chef.ultimateDesc) + '</div>' : '') + '</td>');
+      }
+      if (colOn('gather')) {
+        cells.push('<td>肉' + g.meat + ' 鱼' + g.fish + ' 菜' + g.veg + ' 面' + g.creation + '</td>');
+      }
+      if (colOn('equip')) {
+        cells.push('<td>' + escapeHtml(chef.equipName || '未装备') + (chef.equipDesc ? '<div class="sub">' + escapeHtml(chef.equipDesc) + '</div>' : '') + '</td>');
+      }
+      if (colOn('amber')) {
+        cells.push('<td>' + (ambers || '无') + '</td>');
+      }
+      if (colOn('origin')) {
+        cells.push('<td>' + escapeHtml(chef.origin || '') + '</td>');
+      }
+      if (colOn('got')) {
+        cells.push('<td><input type="checkbox" data-got="' + chef.id + '"' + (chef.got ? ' checked' : '') + '></td>');
+      }
+      return '<tr>' + cells.join('') + '</tr>';
+    }).join('') || '<tr><td>没有符合条件的厨师。</td></tr>';
+    renderPager(els.chefPager, 'chefs', info);
   }
 
   function renderEquipTable() {
-    var keyword = (els.equipKeyword.value || '').trim();
-    var rarity = Number(els.equipRarity.value || 0);
+    var keyword = els.equipKeyword.value || '';
     var list = state.equips.filter(function (item) {
-      if (rarity && item.rarity !== rarity) {
+      if (!state.equipStars[item.rarity]) {
         return false;
       }
-      if (!keyword) {
-        return true;
-      }
-      return [item.name, item.skill, item.origin].join(' ').indexOf(keyword) >= 0;
+      return matchKeyword([item.name, item.skill, item.origin].join(' '), keyword);
     });
-    els.equipCount.textContent = '显示 ' + Math.min(80, list.length) + ' / ' + list.length;
-    els.equipTable.innerHTML = list.slice(0, 80).map(function (item) {
+    var info = pageSlice(list, 'equips');
+    els.equipTable.innerHTML = info.rows.map(function (item) {
       return [
         '<tr>',
-        '<td><img class="thumb" src="' + item.img + '" alt=""></td>',
+        '<td class="fix"><img class="thumb" src="' + item.img + '" alt=""></td>',
         '<td><div class="name">' + escapeHtml(item.name) + '</div><div class="stars">' + stars(item.rarity) + '</div></td>',
         '<td>' + escapeHtml(item.skill || '') + '</td>',
         '<td>' + escapeHtml(item.origin || '') + '</td>',
@@ -501,26 +598,23 @@
         '</tr>'
       ].join('');
     }).join('') || '<tr><td colspan="5">没有符合条件的厨具。</td></tr>';
+    renderPager(els.equipPager, 'equips', info);
   }
 
   function renderAmberTable() {
-    var keyword = (els.amberKeyword.value || '').trim();
-    var color = Number(els.amberColor.value || 0);
+    var keyword = els.amberKeyword.value || '';
     var list = state.ambers.filter(function (item) {
-      if (color && item.type !== color) {
+      if (!state.amberColors[item.type]) {
         return false;
       }
-      if (!keyword) {
-        return true;
-      }
-      return [item.name, item.skill, item.origin, item.color].join(' ').indexOf(keyword) >= 0;
+      return matchKeyword([item.name, item.skill, item.origin, item.color].join(' '), keyword);
     });
-    els.amberCount.textContent = list.length + ' / ' + state.ambers.length;
-    els.amberTable.innerHTML = list.map(function (item) {
+    var info = pageSlice(list, 'ambers');
+    els.amberTable.innerHTML = info.rows.map(function (item) {
       var klass = { 红: 'red', 绿: 'green', 蓝: 'blue' }[item.color] || 'gray';
       return [
         '<tr>',
-        '<td><img class="thumb" src="' + item.img + '" alt=""></td>',
+        '<td class="fix"><img class="thumb" src="' + item.img + '" alt=""></td>',
         '<td><div class="name">' + escapeHtml(item.name) + '</div><div class="stars">' + stars(item.rarity) + '</div></td>',
         '<td><span class="tag ' + klass + '">' + item.color + '</span></td>',
         '<td>' + escapeHtml(item.skill || item.desc) + '</td>',
@@ -530,6 +624,7 @@
         '</tr>'
       ].join('');
     }).join('') || '<tr><td colspan="7">没有符合条件的遗玉。</td></tr>';
+    renderPager(els.amberPager, 'ambers', info);
   }
 
   function renderOpenPresets() {
@@ -559,20 +654,19 @@
 
   function chefCardHtml(chef, index, kind) {
     if (!chef) {
-      return '<button class="slot empty" type="button" data-kind="' + kind + '" data-index="' + index + '">点此上场</button>';
+      return '<div class="chef-box"><div class="show empty" data-kind="' + kind + '" data-index="' + index + '">选择厨师</div></div>';
     }
     var ambers = (chef.amberSlots || []).map(function (slot, i) {
       return miniHtml('amber', index, i, slot.color + '玉', slot.id ? slot : null, ({ 红: 'red', 绿: 'green', 蓝: 'blue' }[slot.color] || ''));
     }).join('');
     return [
-      '<div class="slot">',
-      '<div class="slot-top" data-kind="' + kind + '" data-index="' + index + '">',
-      '<img class="thumb" src="' + chef.img + '" alt="">',
-      '<div><div class="slot-name">' + escapeHtml(chef.name) + '</div><div class="stars">' + stars(chef.rarity) + '</div><div class="sub">' + (chef.isPartialUlt ? '光环厨' : (chef.isSelfUlt ? '已修炼' : '个人技')) + ' · 盘' + chef.diskLv + '</div></div>',
+      '<div class="chef-box">',
+      '<div class="show" data-kind="' + kind + '" data-index="' + index + '">',
+      '<div class="show-chef"><img class="thumb" src="' + chef.img + '" alt=""><div><div class="name">' + escapeHtml(chef.name) + (chef.isPartialUlt || chef.isSelfUlt ? '<span class="badge">满</span>' : '') + '</div><div class="stars">' + stars(chef.rarity) + '</div><div class="sub">盘' + chef.diskLv + '</div></div></div>',
+      '<div class="skill">' + escapeHtml(chef.skillDesc || '') + '</div>',
+      chef.ultimateDesc ? '<div class="skill">' + escapeHtml(chef.ultimateDesc) + '</div>' : '',
       '</div>',
-      '<div class="slot-skill">' + escapeHtml(chef.skillDesc || '') + '</div>',
-      chef.ultimateDesc ? '<div class="slot-skill">' + escapeHtml(chef.ultimateDesc) + '</div>' : '',
-      '<div class="mini-slots">',
+      '<div class="mini-row">',
       miniHtml('equip', index, 0, '厨具', chef.equipId ? { name: chef.equipName, desc: chef.equipDesc, img: chef.equipImg } : null, ''),
       ambers,
       '</div>',
@@ -674,14 +768,14 @@
     document.querySelectorAll('.nav-item').forEach(function (btn) {
       btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
     });
+    els.homePane.hidden = mode !== 'home';
     els.chefsPane.hidden = mode !== 'chefs';
     els.equipsPane.hidden = mode !== 'equips';
     els.ambersPane.hidden = mode !== 'ambers';
     els.openPane.hidden = mode !== 'open';
     els.gatherPane.hidden = mode !== 'gather';
     els.userPane.hidden = mode !== 'user';
-    els.aside.classList.remove('open');
-    els.navMask.classList.remove('show');
+    closeNav();
     persist();
   }
 
@@ -765,7 +859,7 @@
       }
     });
     var occupied = kind === 'gather' ? usedGatherIds(state.gatherArea) : {};
-    var list = state.chefs.filter(function (chef) {
+    var list = ownedChefs().filter(function (chef) {
       if (filter === 'aura' && !chef.isPartialUlt) {
         return false;
       }
@@ -821,13 +915,13 @@
   }
 
   function recommendGather() {
-    if (!state.chefs.length) {
+    if (!ownedChefs().length) {
       toast('先载入数据');
       return;
     }
     var area = E.findArea(state.gatherArea);
     var occupied = usedGatherIds(state.gatherArea);
-    var pool = state.chefs.filter(function (c) { return !occupied[c.id]; });
+    var pool = ownedChefs().filter(function (c) { return !occupied[c.id]; });
     var team = E.pickTeam(area, pool);
     state.gatherTeams[gatherKey(state.gatherArea)] = [0, 1, 2, 3].map(function (i) {
       return team[i] ? team[i].id : null;
@@ -839,8 +933,9 @@
   function onSlotClick(event) {
     var mini = event.target.closest('.mini');
     if (mini) {
-      var chefKind = mini.closest('.slot') && mini.closest('.slot').querySelector('[data-kind]');
-      var lineupKind = chefKind ? chefKind.getAttribute('data-kind') : (state.mode === 'gather' ? 'gather' : 'open');
+      var box = mini.closest('.chef-box');
+      var chefEl = box && box.querySelector('[data-kind][data-index]');
+      var lineupKind = chefEl ? chefEl.getAttribute('data-kind') : (state.mode === 'gather' ? 'gather' : 'open');
       openPicker(mini.getAttribute('data-kind'), Number(mini.getAttribute('data-index')), Number(mini.getAttribute('data-slot') || 0), lineupKind);
       return;
     }
@@ -850,6 +945,34 @@
     }
   }
 
+  function hidePops() {
+    [els.settingPop, els.chefColsPop, els.chefFilterPop, els.equipFilterPop, els.amberFilterPop].forEach(function (el) {
+      if (el) {
+        el.hidden = true;
+      }
+    });
+  }
+
+  function renderChefPops() {
+    els.chefColsPop.innerHTML = '<div class="pop-title">展示列</div>' + state.chefCols.map(function (c) {
+      return '<label><input type="checkbox" data-col="' + c.key + '"' + (c.on ? ' checked' : '') + '> ' + c.name + '</label>';
+    }).join('');
+    els.chefFilterPop.innerHTML = '<div class="pop-title">筛选</div>' +
+      [1, 2, 3, 4, 5].map(function (n) {
+        return '<label><input type="checkbox" data-star="' + n + '"' + (state.chefStars[n] ? ' checked' : '') + '> ' + n + '星</label>';
+      }).join('') +
+      '<label><input type="checkbox" data-extra="aura"' + (state.chefExtra.aura ? ' checked' : '') + '> 光环厨</label>' +
+      '<label><input type="checkbox" data-extra="ult"' + (state.chefExtra.ult ? ' checked' : '') + '> 已修炼</label>';
+    els.equipFilterPop.innerHTML = '<div class="pop-title">筛选</div>' +
+      [1, 2, 3].map(function (n) {
+        return '<label><input type="checkbox" data-eqstar="' + n + '"' + (state.equipStars[n] ? ' checked' : '') + '> ' + n + '星</label>';
+      }).join('');
+    els.amberFilterPop.innerHTML = '<div class="pop-title">筛选</div>' +
+      [{ id: 1, name: '红 · 太初赤玉' }, { id: 2, name: '绿 · 太初碧玉' }, { id: 3, name: '蓝 · 太初青玉' }].map(function (c) {
+        return '<label><input type="checkbox" data-color="' + c.id + '"' + (state.amberColors[c.id] ? ' checked' : '') + '> ' + c.name + '</label>';
+      }).join('');
+  }
+
   document.querySelectorAll('.nav-item').forEach(function (btn) {
     btn.addEventListener('click', function () {
       setMode(btn.getAttribute('data-mode'));
@@ -857,10 +980,28 @@
   });
 
   els.btnNav.addEventListener('click', function () {
+    hidePops();
     els.aside.classList.toggle('open');
     els.navMask.classList.toggle('show');
   });
-  els.navMask.addEventListener('click', closeNav);
+  els.navMask.addEventListener('click', function () {
+    closeNav();
+    hidePops();
+  });
+  els.btnSetting.addEventListener('click', function (event) {
+    event.stopPropagation();
+    var show = els.settingPop.hidden;
+    hidePops();
+    els.settingPop.hidden = !show;
+    els.settingPop.style.position = 'fixed';
+    els.settingPop.style.right = '8px';
+    els.settingPop.style.top = '54px';
+  });
+  els.pageSize.addEventListener('change', function () {
+    state.pageSize = Number(els.pageSize.value) || 20;
+    state.pages = { chefs: 1, equips: 1, ambers: 1 };
+    renderAll();
+  });
 
   els.btnLoadLocal.addEventListener('click', loadLocalData);
   els.btnImport.addEventListener('click', function () {
@@ -910,12 +1051,126 @@
     toast('装饰加成已保存');
   });
 
-  els.chefKeyword.addEventListener('input', renderChefTable);
-  els.chefFilter.addEventListener('change', renderChefTable);
-  els.equipKeyword.addEventListener('input', renderEquipTable);
-  els.equipRarity.addEventListener('change', renderEquipTable);
-  els.amberKeyword.addEventListener('input', renderAmberTable);
-  els.amberColor.addEventListener('change', renderAmberTable);
+  els.chefKeyword.addEventListener('input', function () {
+    state.pages.chefs = 1;
+    renderChefTable();
+  });
+  els.chefGotOnly.addEventListener('change', function () {
+    state.chefGotOnly = els.chefGotOnly.checked;
+    state.pages.chefs = 1;
+    renderChefTable();
+    persist();
+  });
+  els.equipKeyword.addEventListener('input', function () {
+    state.pages.equips = 1;
+    renderEquipTable();
+  });
+  els.amberKeyword.addEventListener('input', function () {
+    state.pages.ambers = 1;
+    renderAmberTable();
+  });
+  els.chefColsBtn.addEventListener('click', function (event) {
+    event.stopPropagation();
+    var show = els.chefColsPop.hidden;
+    hidePops();
+    els.chefColsPop.hidden = !show;
+  });
+  els.chefFilterBtn.addEventListener('click', function (event) {
+    event.stopPropagation();
+    var show = els.chefFilterPop.hidden;
+    hidePops();
+    els.chefFilterPop.hidden = !show;
+  });
+  els.equipFilterBtn.addEventListener('click', function (event) {
+    event.stopPropagation();
+    var show = els.equipFilterPop.hidden;
+    hidePops();
+    els.equipFilterPop.hidden = !show;
+  });
+  els.amberFilterBtn.addEventListener('click', function (event) {
+    event.stopPropagation();
+    var show = els.amberFilterPop.hidden;
+    hidePops();
+    els.amberFilterPop.hidden = !show;
+  });
+  els.chefColsPop.addEventListener('change', function (event) {
+    var key = event.target.getAttribute('data-col');
+    if (!key) {
+      return;
+    }
+    var col = state.chefCols.find(function (c) { return c.key === key; });
+    if (col) {
+      col.on = event.target.checked;
+    }
+    renderChefTable();
+    persist();
+  });
+  els.chefFilterPop.addEventListener('change', function (event) {
+    var star = event.target.getAttribute('data-star');
+    var extra = event.target.getAttribute('data-extra');
+    if (star) {
+      state.chefStars[Number(star)] = event.target.checked;
+    }
+    if (extra) {
+      state.chefExtra[extra] = event.target.checked;
+    }
+    state.pages.chefs = 1;
+    renderChefTable();
+  });
+  els.equipFilterPop.addEventListener('change', function (event) {
+    var star = event.target.getAttribute('data-eqstar');
+    if (star) {
+      state.equipStars[Number(star)] = event.target.checked;
+      state.pages.equips = 1;
+      renderEquipTable();
+    }
+  });
+  els.amberFilterPop.addEventListener('change', function (event) {
+    var color = event.target.getAttribute('data-color');
+    if (color) {
+      state.amberColors[Number(color)] = event.target.checked;
+      state.pages.ambers = 1;
+      renderAmberTable();
+    }
+  });
+  els.chefTable.addEventListener('change', function (event) {
+    var id = event.target.getAttribute('data-got');
+    if (!id || !state.user) {
+      return;
+    }
+    state.user.chefGot = state.user.chefGot || {};
+    state.user.chefGot[id] = event.target.checked;
+    setChefsFromUser(state.user);
+    saveUserToDisk(state.user);
+    renderAll();
+  });
+  function onPagerClick(event) {
+    var btn = event.target.closest('[data-page][data-key]');
+    if (!btn || btn.disabled) {
+      return;
+    }
+    var key = btn.getAttribute('data-key');
+    var page = Number(btn.getAttribute('data-page'));
+    if (page < 1) {
+      return;
+    }
+    state.pages[key] = page;
+    if (key === 'chefs') {
+      renderChefTable();
+    } else if (key === 'equips') {
+      renderEquipTable();
+    } else {
+      renderAmberTable();
+    }
+  }
+  els.chefPager.addEventListener('click', onPagerClick);
+  els.equipPager.addEventListener('click', onPagerClick);
+  els.amberPager.addEventListener('click', onPagerClick);
+  document.addEventListener('click', function (event) {
+    if (!event.target.closest('.pop') && !event.target.closest('.sb-btn') && event.target !== els.btnSetting) {
+      hidePops();
+    }
+  });
 
   els.openPreset.addEventListener('change', function () {
     state.activeOpenId = els.openPreset.value;
@@ -986,6 +1241,9 @@
   });
 
   restore();
+  els.pageSize.value = String(state.pageSize);
+  els.chefGotOnly.checked = state.chefGotOnly;
+  renderChefPops();
   setMode(state.mode);
   renderOpenPresets();
   renderGatherAreas();

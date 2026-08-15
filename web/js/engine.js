@@ -331,13 +331,18 @@
     return gain + (chef.critChance / 100) * chef.critMaterial;
   }
 
-  function buildOwnedChefs(data, user) {
+  function buildAllChefs(data, user) {
     var skillMap = skillMapOf(data);
-    var chefGot = user.chefGot || {};
-    return (data.chefs || [])
-      .filter(function (c) { return chefGot[c.chefId] === true; })
-      .map(function (c) { return buildChef(c, user, data, skillMap); })
-      .sort(function (a, b) { return b.rarity - a.rarity || a.id - b.id; });
+    var chefGot = (user && user.chefGot) || {};
+    return (data.chefs || []).map(function (c) {
+      var chef = buildChef(c, user || {}, data, skillMap);
+      chef.got = chefGot[c.chefId] === true;
+      return chef;
+    }).sort(function (a, b) { return b.rarity - a.rarity || a.id - b.id; });
+  }
+
+  function buildOwnedChefs(data, user) {
+    return buildAllChefs(data, user).filter(function (c) { return c.got; });
   }
 
   function teamAuraBonus(chefs) {
@@ -989,6 +994,7 @@
     TECH_TYPES: TECH_TYPES,
     toInt: toInt,
     expectation: expectation,
+    buildAllChefs: buildAllChefs,
     buildOwnedChefs: buildOwnedChefs,
     previewGather: previewGather,
     pickTeam: pickTeam,

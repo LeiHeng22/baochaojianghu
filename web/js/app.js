@@ -82,6 +82,7 @@
           { id: 12, name: '遗玉', icon: 'el-icon-bangzhu' },
           { id: 4, name: '装修', icon: 'el-icon-refrigerator' },
           { id: 5, name: '探索', icon: 'el-icon-chicken' },
+          { id: 13, name: '金符文', icon: 'el-icon-star-on' },
           { id: 10, name: '调料', icon: 'el-icon-ice-tea' },
           { id: 6, name: '任务', icon: 'el-icon-document' },
           { id: 7, name: '计算器', icon: 'el-icon-set-up' },
@@ -110,6 +111,52 @@
           amberKeyword: '',
           rarity: { 1: true, 2: true, 3: true },
           origin: { 1: { name: '太初赤玉', flag: true }, 2: { name: '太初碧玉', flag: true }, 3: { name: '太初青玉', flag: true } }
+        },
+        recipesPageSize: 20,
+        recipesCurPage: 1,
+        recipes: [],
+        repKeyword: '',
+        guestKeyword: '',
+        skill_radio: false,
+        skill_type: false,
+        rep_condiment_radio: false,
+        goldRuneGroups: [],
+        goldRuneSelected: { '蒸馏杯': false, '恐怖利刃': false, '鼓风机': false, '千年煮鳖': false, '香烤鱼排': false, '五星炒果': false },
+        goldRuneOwnedOnly: true,
+        goldRuneBonus: 400,
+        goldRuneServings: 15,
+        goldRuneNames: ['蒸馏杯', '恐怖利刃', '鼓风机', '千年煮鳖', '香烤鱼排', '五星炒果'],
+        repCol: {
+          id: false, img: false, rarity: false, skills: false, skills_sim: false, condiment: false,
+          materials: false, price: true, time: true, limit: false, total_price: false,
+          total_time_show: false, gold_eff: true, origin: true, unlock: false, combo: false,
+          guests: true, degree_guests: false, gift: true, got: true
+        },
+        repColName: {
+          id: '编号', img: '图', rarity: '星级', skills: '技法（全）', skills_sim: '技法（简）',
+          condiment: '调料', materials: '材料', price: '单价', time: '单时间', limit: '一组',
+          total_price: '总价', total_time_show: '总时间', gold_eff: '金币效率', origin: '来源',
+          unlock: '解锁', combo: '合成', guests: '贵客', degree_guests: '升阶贵客', gift: '神级符文', got: '已有'
+        },
+        repFilter: {
+          rarity: { 1: true, 2: true, 3: true, 4: true, 5: true },
+          skill: {
+            stirfry: { name: '炒', flag: true }, boil: { name: '煮', flag: true }, knife: { name: '切', flag: true },
+            fry: { name: '炸', flag: true }, bake: { name: '烤', flag: true }, steam: { name: '蒸', flag: true }
+          },
+          condiment: {
+            Sweet: { name: '甜', flag: true }, Sour: { name: '酸', flag: true }, Spicy: { name: '辣', flag: true },
+            Salty: { name: '咸', flag: true }, Bitter: { name: '苦', flag: true }, Tasty: { name: '鲜', flag: true }
+          },
+          material: {
+            vegetable: { name: '菜', flag: true }, meat: { name: '肉', flag: true },
+            creation: { name: '面', flag: true }, fish: { name: '鱼', flag: true }
+          },
+          material_type: false,
+          guest: false,
+          combo: false,
+          got: false,
+          price: ''
         },
         chefsPageSize: 20,
         equipsPageSize: 20,
@@ -196,6 +243,91 @@
       navTitle: function () {
         var item = this.nav.find(function (n) { return n.id === this.navId; }.bind(this));
         return item ? item.name : '首页';
+      },
+      recipesView: function () {
+        var that = this;
+        var skillOn = Object.keys(this.repFilter.skill).filter(function (k) { return that.repFilter.skill[k].flag; });
+        var condOn = Object.keys(this.repFilter.condiment).filter(function (k) { return that.repFilter.condiment[k].flag; });
+        var matOn = Object.keys(this.repFilter.material).filter(function (k) { return that.repFilter.material[k].flag; });
+        var minPrice = Number(this.repFilter.price);
+        return this.recipes.filter(function (item) {
+          if (!that.repFilter.rarity[item.rarity]) {
+            return false;
+          }
+          if (that.repFilter.got && !item.got) {
+            return false;
+          }
+          if (that.repFilter.guest && !item.normal_guests) {
+            return false;
+          }
+          if (that.repFilter.combo && !item.combo) {
+            return false;
+          }
+          if (Number.isFinite(minPrice) && minPrice > 0 && item.price <= minPrice) {
+            return false;
+          }
+          if (skillOn.length) {
+            var hitSkill = skillOn.filter(function (k) { return item[k]; });
+            if (that.skill_type) {
+              if (hitSkill.length !== skillOn.length) {
+                return false;
+              }
+            } else if (!hitSkill.length) {
+              return false;
+            }
+          } else {
+            return false;
+          }
+          if (condOn.length) {
+            if (condOn.indexOf(item.condiment) < 0) {
+              return false;
+            }
+          } else {
+            return false;
+          }
+          if (matOn.length) {
+            var hitMat = matOn.filter(function (k) { return item.materials_type.indexOf(k) > -1; });
+            if (that.repFilter.material_type) {
+              if (hitMat.length !== matOn.length) {
+                return false;
+              }
+            } else if (!hitMat.length) {
+              return false;
+            }
+          } else {
+            return false;
+          }
+          if (!matchKeyword([item.name, item.materials_search, item.normal_guests, item.gift, item.origin].join(' '), that.repKeyword)) {
+            return false;
+          }
+          return matchKeyword([item.degree_guests, item.gift].join(' '), that.guestKeyword);
+        });
+      },
+      recipesPage: function () {
+        var start = (this.recipesCurPage - 1) * this.recipesPageSize;
+        return this.recipesView.slice(start, start + this.recipesPageSize);
+      },
+      gatherBlocks: function () {
+        return [
+          { group: 'veg', title: '菜园区', areas: E.VEG_AREAS },
+          { group: 'jade', title: '玉片区', areas: E.JADE_AREAS },
+          { group: 'cond', title: '调料区', areas: E.COND_AREAS }
+        ];
+      },
+      goldRuneRecommend: function () {
+        var selected = this.goldRuneNames.filter(function (name) {
+          return this.goldRuneSelected[name];
+        }.bind(this));
+        return E.recommendGoldRunes(this.goldRuneGroups, selected, this.goldRuneOwnedOnly);
+      },
+      goldRunePlan: function () {
+        return this.goldRuneRecommend.plan;
+      },
+      goldRuneOptions: function () {
+        return this.goldRuneRecommend.options;
+      },
+      goldRuneRate: function () {
+        return E.goldGuestRate(this.goldRuneBonus, this.goldRuneServings);
       },
       chefsView: function () {
         var that = this;
@@ -356,7 +488,20 @@
             return { id: item.id, name: item.name, sub: item.skill };
           });
         }
+        var used = {};
+        if (this.pickerKind === 'gather') {
+          Object.keys(this.gatherTeams).forEach(function (name) {
+            (this.gatherTeams[name] || []).forEach(function (id, idx) {
+              if (id && !(name === this.gatherArea && idx === this.pickerIndex)) {
+                used[id] = true;
+              }
+            }.bind(this));
+          }.bind(this));
+        }
         return this.ownedChefs.filter(function (chef) {
+          if (used[chef.id]) {
+            return false;
+          }
           return matchKeyword([chef.name, chef.skill, chef.ultimateSkillShow].join(' '), keyword);
         }).slice(0, 80).map(function (chef) {
           return { id: chef.id, name: chef.name, sub: chef.ultimateSkillShow || chef.skill };
@@ -397,6 +542,10 @@
       }
     },
     watch: {
+      repCol: { deep: true, handler: function () { this.tableKey += 1; } },
+      repFilter: { deep: true, handler: function () { this.recipesCurPage = 1; } },
+      repKeyword: function () { this.recipesCurPage = 1; },
+      guestKeyword: function () { this.recipesCurPage = 1; },
       chefCol: { deep: true, handler: function () { this.tableKey += 1; this.persist(); } },
       equipCol: { deep: true, handler: function () { this.tableKey += 1; } },
       amberCol: { deep: true, handler: function () { this.tableKey += 1; } },
@@ -436,6 +585,17 @@
           var skill = this.condimentFilter.skillType;
           var anyOff = Object.keys(skill).some(function (k) { return !skill[k].flag; });
           Object.keys(skill).forEach(function (k) { skill[k].flag = anyOff; });
+        } else if (target === 'repFilter.skill') {
+          this.skill_radio = false;
+          this.skill_type = false;
+          var skill = this.repFilter.skill;
+          var skillOff = Object.keys(skill).some(function (k) { return !skill[k].flag; });
+          Object.keys(skill).forEach(function (k) { skill[k].flag = skillOff; });
+        } else if (target === 'repFilter.condiment') {
+          this.rep_condiment_radio = false;
+          var cond = this.repFilter.condiment;
+          var condOff = Object.keys(cond).some(function (k) { return !cond[k].flag; });
+          Object.keys(cond).forEach(function (k) { cond[k].flag = condOff; });
         } else if (target === 'decorationFilter.position') {
           this.decoration_radio = false;
           var pos = this.decorationFilter.position;
@@ -648,9 +808,11 @@
         this.suits = deco.suits;
         this.decoTimeList = deco.decoTimes;
         this.quests = E.buildQuestCatalog(this.data);
+        this.recipes = E.buildRecipeCatalog(this.data, this.user);
+        this.goldRuneGroups = E.buildGoldRuneCatalog(this.data, this.user);
         var owned = this.chefs.filter(function (c) { return c.got; }).length;
         var recipes = Object.keys(this.user.repGot || {}).filter(function (k) { return this.user.repGot[k]; }.bind(this)).length;
-        this.dataStatus = '已有厨师 ' + owned + ' / ' + this.chefs.length + ' · 菜谱 ' + recipes;
+        this.dataStatus = '已有厨师 ' + owned + ' / ' + this.chefs.length + ' · 菜谱 ' + recipes + ' / ' + this.recipes.length;
         if (!this.syncingUltimate) {
           this.userUltimate = this.normalizeUltimate(this.user.userUltimate);
         }
@@ -703,6 +865,108 @@
           logError('loadLocal', err);
           that.loading = false;
           that.toast('载入失败，请到个人页导入');
+        });
+      },
+      checkRepSkill: function (key) {
+        var skill = this.repFilter.skill;
+        if (this.skill_radio) {
+          Object.keys(skill).forEach(function (k) {
+            skill[k].flag = k === key ? !skill[k].flag : false;
+          });
+        } else {
+          skill[key].flag = !skill[key].flag;
+        }
+      },
+      checkRepCondiment: function (key) {
+        var cond = this.repFilter.condiment;
+        if (this.rep_condiment_radio) {
+          Object.keys(cond).forEach(function (k) {
+            cond[k].flag = k === key ? !cond[k].flag : false;
+          });
+        } else {
+          cond[key].flag = !cond[key].flag;
+        }
+      },
+      changeRepSkillRadio: function (val) {
+        if (!val) {
+          return;
+        }
+        this.skill_type = false;
+        var skill = this.repFilter.skill;
+        var on = Object.keys(skill).filter(function (k) { return skill[k].flag; });
+        if (on.length > 1) {
+          Object.keys(skill).forEach(function (k) { skill[k].flag = false; });
+        }
+      },
+      changeRepSkillType: function (val) {
+        if (!val) {
+          return;
+        }
+        this.skill_radio = false;
+      },
+      changeRepGot: function (val, recipeId) {
+        if (!this.user) {
+          return;
+        }
+        this.user.repGot = this.user.repGot || {};
+        this.user.repGot[recipeId] = !!val;
+        this.setUser(this.user);
+        this.saveUserToDisk(this.user);
+      },
+      gatherSlot: function (areaName, index) {
+        if (!this.gatherTeams[areaName]) {
+          this.$set(this.gatherTeams, areaName, [null, null, null, null]);
+        }
+        return this.gatherTeams[areaName][index];
+      },
+      gatherAreaPreview: function (areaName) {
+        var area = E.findArea(areaName);
+        if (!area || !this.data) {
+          return '';
+        }
+        var team = (this.gatherTeams[areaName] || []).map(this.chefById).filter(Boolean);
+        var preview = E.previewGather(area, team, this.data);
+        if (preview.kind === 'veg') {
+          return preview.label + ' ' + preview.points + '/' + preview.need + ' 素材' + preview.gain + '%';
+        }
+        if (preview.kind === 'jade') {
+          return preview.label + ' ' + preview.points + ' 档' + preview.tier;
+        }
+        return preview.label + ' ' + preview.points + '/' + preview.need;
+      },
+      openGatherPicker: function (areaName, index) {
+        this.gatherArea = areaName;
+        this.openPicker('gather', index);
+      },
+      recommendAllGather: function () {
+        if (!this.ownedChefs.length) {
+          this.toast('先导入已有厨师');
+          return;
+        }
+        var assigned = E.assignAllGather(this.ownedChefs, this.data);
+        Object.keys(assigned).forEach(function (name) {
+          this.$set(this.gatherTeams, name, assigned[name]);
+        }.bind(this));
+        this.persist();
+        this.toast('已按全图最优分配，同一厨师只出现一次');
+      },
+      clearAllGather: function () {
+        var that = this;
+        E.ALL_AREAS.forEach(function (area) {
+          that.$set(that.gatherTeams, area.name, [null, null, null, null]);
+        });
+        this.persist();
+      },
+      selectAllGoldRunes: function () {
+        var that = this;
+        this.goldRuneNames.forEach(function (name) {
+          that.$set(that.goldRuneSelected, name, true);
+        });
+      },
+      clearGoldRunes: function () {
+        var that = this;
+        this.goldRuneNames.forEach(function (name) {
+          that.$set(that.goldRuneSelected, name, false);
         });
       },
       changeGot: function (val, chefId) {
@@ -1223,29 +1487,10 @@
       },
       onGatherGroup: function () {},
       recommendGather: function () {
-        var area = E.findArea(this.gatherArea);
-        var used = {};
-        Object.keys(this.gatherTeams).forEach(function (name) {
-          if (name === this.gatherArea) {
-            return;
-          }
-          (this.gatherTeams[name] || []).forEach(function (id) {
-            if (id) {
-              used[id] = true;
-            }
-          });
-        }.bind(this));
-        var pool = this.ownedChefs.filter(function (c) { return !used[c.id]; });
-        var team = E.pickTeam(area, pool);
-        this.$set(this.gatherTeams, this.gatherArea, [0, 1, 2, 3].map(function (i) {
-          return team[i] ? team[i].id : null;
-        }));
-        this.persist();
-        this.toast('已按当前地点推荐四人');
+        this.recommendAllGather();
       },
       clearGather: function () {
-        this.$set(this.gatherTeams, this.gatherArea, [null, null, null, null]);
-        this.persist();
+        this.clearAllGather();
       }
     },
     mounted: function () {

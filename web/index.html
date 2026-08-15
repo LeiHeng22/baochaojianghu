@@ -35,6 +35,49 @@
 
     <el-drawer class="right-bar" :visible.sync="rightBar" size="300px" :with-header="false">
       <div class="right-bar-body" :class="navId == 2 ? 'scroll-chef' : ''">
+        <div v-show="navId === 1">
+          <div class="box">
+            <div class="box-title">展示列</div>
+            <div class="hr"></div>
+            <span class="checkbox" @click="selectAllCol('repCol')">全选</span>
+            <span v-for="(val, key) in repColName" :key="key" class="checkbox" :class="repCol[key] ? 'active' : ''" @click="repCol[key] = !repCol[key]">{{ val }}</span>
+          </div>
+          <div class="box">
+            <div class="box-title">筛选</div>
+            <div class="hr"></div>
+            <div class="checkbox-contain">
+              <span class="checkbox" v-for="(val, key) in repFilter.rarity" :key="key" :class="val ? 'active' : ''" @click="repFilter.rarity[key] = !val">{{ key }}星</span>
+            </div>
+            <div class="checkbox-contain">
+              <span class="checkbox" v-for="(val, key) in repFilter.skill" :key="key" :class="val.flag ? 'active' : ''" @click="checkRepSkill(key)">{{ val.name }}</span>
+              <span class="checkbox" @click="selectAllFlags('repFilter.skill')">全选</span>
+              <el-switch v-model="skill_radio" active-color="#82a1b0" active-text="单选" @change="changeRepSkillRadio" inactive-color="#ddd"></el-switch>
+              <el-switch v-model="skill_type" active-color="#82a1b0" active-text="同时" @change="changeRepSkillType" inactive-color="#ddd"></el-switch>
+            </div>
+            <div class="checkbox-contain">
+              <span class="checkbox" v-for="(val, key) in repFilter.condiment" :key="key" :class="val.flag ? 'active' : ''" @click="checkRepCondiment(key)">{{ val.name }}</span>
+              <span class="checkbox" @click="selectAllFlags('repFilter.condiment')">全选</span>
+              <el-switch v-model="rep_condiment_radio" active-color="#82a1b0" active-text="单选" inactive-color="#ddd"></el-switch>
+            </div>
+            <div class="checkbox-contain">
+              <span class="checkbox" v-for="(val, key) in repFilter.material" :key="key" :class="val.flag ? 'active' : ''" @click="val.flag = !val.flag">{{ val.name }}</span>
+              <el-switch v-model="repFilter.material_type" active-color="#82a1b0" active-text="同时" inactive-color="#ddd"></el-switch>
+            </div>
+            <div class="checkbox-contain">
+              <span class="checkbox" :class="repFilter.guest ? 'active' : ''" @click="repFilter.guest = !repFilter.guest">贵客</span>
+              <span class="checkbox" :class="repFilter.got ? 'active' : ''" @click="repFilter.got = !repFilter.got">已有</span>
+              <span class="checkbox" :class="repFilter.combo ? 'active' : ''" @click="repFilter.combo = !repFilter.combo">可合成</span>
+            </div>
+            <div class="checkbox-contain">
+              <div class="prepend-input">
+                <div class="input-box">
+                  <div class="prepend">单价大于</div>
+                  <input type="number" v-model="repFilter.price">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         <div v-show="navId === 2">
           <div class="box">
             <div class="box-title">展示列</div>
@@ -132,11 +175,17 @@
       </div>
     </el-drawer>
 
-    <div v-if="[2, 3, 4, 10, 12].indexOf(navId) > -1" class="suspend icon-btn" @click="rightBar = true">
+    <div v-if="[1, 2, 3, 4, 10, 12].indexOf(navId) > -1" class="suspend icon-btn" @click="rightBar = true">
       <i class="el-icon-search"></i>
     </div>
 
     <el-dialog top="160px" :show-close="false" :visible.sync="settingVisible" width="270px">
+      <div class="input-box" v-show="navId==1">
+        <span class="label">菜谱分页</span>
+        <el-select size="mini" v-model="recipesPageSize">
+          <el-option v-for="item in page_list" :key="item.id" :label="item.name" :value="item.id"></el-option>
+        </el-select>
+      </div>
       <div class="input-box" v-show="navId==2">
         <span class="label">厨师分页</span>
         <el-select size="mini" v-model="chefsPageSize">
@@ -173,7 +222,7 @@
           <el-option v-for="item in page_list" :key="item.id" :label="item.name" :value="item.id"></el-option>
         </el-select>
       </div>
-      <div class="input-box" v-if="[2,3,4,6,10,12].indexOf(navId) < 0">
+      <div class="input-box" v-if="[1,2,3,4,6,10,12].indexOf(navId) < 0">
         <span class="label">每页行数</span>
         <el-select size="mini" v-model="chefsPageSize">
           <el-option v-for="item in page_list" :key="item.id" :label="item.name" :value="item.id"></el-option>
@@ -188,7 +237,7 @@
     <i class="icon-btn el-icon-s-operation" @click="leftBar = !leftBar"></i>
     <div class="notice" v-if="navId == 4 && decoSelectText && decoSelectId.length > 0">{{ decoSelectText }}</div>
     <span class="right">
-      <i v-if="[2, 3, 4, 10, 12].indexOf(navId) > -1" class="icon-btn el-icon-search" style="margin-left: 6px;" @click="rightBar = true"></i>
+      <i v-if="[1, 2, 3, 4, 10, 12].indexOf(navId) > -1" class="icon-btn el-icon-search" style="margin-left: 6px;" @click="rightBar = true"></i>
       <i class="icon-btn el-icon-s-tools" @click="settingVisible = true"></i>
     </span>
   </section>
@@ -207,7 +256,7 @@
         <div class="title">最近更新</div>
         <div class="hr"></div>
         <div class="box-body">
-          <div class="p">本站在白菜菊花界面上增加了【探索】：菜园 / 玉片 / 调料各地 4 人采集。</div>
+          <div class="p">本站在白菜菊花界面上增加了【探索】全图配队、【金符文】无冲突推荐。</div>
           <div class="p">{{ dataStatus }}</div>
         </div>
         <div class="title">常见问题</div>
@@ -218,6 +267,57 @@
             <p>A: 游戏内点击左上角昵称，然后点击<span class="code">设置</span>-<span class="code">白菜菊花</span>获取校验码，然后将校验码填入本图鉴的【个人】页，使用<span class="code">官方数据导入</span>功能导入即可</p>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div v-show="navId === 1">
+      <div class="search-box">
+        <el-row>
+          <el-col :span="13">
+            <el-input class="left" size="small" prefix-icon="el-icon-search" placeholder="菜名 材料 贵客 符文 来源" v-model="repKeyword"></el-input>
+          </el-col>
+          <el-col :span="11">
+            <el-input size="small" prefix-icon="el-icon-search" placeholder="升阶贵客 神级符文" v-model="guestKeyword"></el-input>
+          </el-col>
+        </el-row>
+      </div>
+      <el-table :key="'rep-'+tableKey" :data="recipesPage" style="width: 100%" :height="tableHeight" v-if="tableShow">
+        <el-table-column fixed sortable prop="recipeId" label="No." width="55" v-if="repCol.id"></el-table-column>
+        <el-table-column fixed label="" width="50" v-if="repCol.img">
+          <template slot-scope="scope"><div class="icon-recipe" :class="'recipe_' + scope.row.recipeId"></div></template>
+        </el-table-column>
+        <el-table-column fixed sortable prop="name" label="菜谱名" width="80"></el-table-column>
+        <el-table-column sortable prop="rarity_show" label="星" min-width="80" v-if="repCol.rarity"></el-table-column>
+        <el-table-column prop="skills_show" label="技法" min-width="90" v-if="repCol.skills_sim"></el-table-column>
+        <el-table-column sortable prop="stirfry" label="炒" min-width="48" v-if="repCol.skills"></el-table-column>
+        <el-table-column sortable prop="boil" label="煮" min-width="48" v-if="repCol.skills"></el-table-column>
+        <el-table-column sortable prop="knife" label="切" min-width="48" v-if="repCol.skills"></el-table-column>
+        <el-table-column sortable prop="fry" label="炸" min-width="48" v-if="repCol.skills"></el-table-column>
+        <el-table-column sortable prop="bake" label="烤" min-width="48" v-if="repCol.skills"></el-table-column>
+        <el-table-column sortable prop="steam" label="蒸" min-width="48" v-if="repCol.skills"></el-table-column>
+        <el-table-column sortable prop="condiment_show" label="调料" min-width="64" v-if="repCol.condiment"></el-table-column>
+        <el-table-column sortable prop="materials_show" label="材料" min-width="130" v-if="repCol.materials"></el-table-column>
+        <el-table-column sortable prop="price" label="单价" min-width="64" v-if="repCol.price"></el-table-column>
+        <el-table-column sortable prop="time_show" label="单时间" min-width="76" v-if="repCol.time"></el-table-column>
+        <el-table-column sortable prop="limit" label="一组" min-width="63" v-if="repCol.limit"></el-table-column>
+        <el-table-column sortable prop="total_price" label="总价" min-width="63" v-if="repCol.total_price"></el-table-column>
+        <el-table-column sortable prop="total_time_show" label="总时间" min-width="100" v-if="repCol.total_time_show"></el-table-column>
+        <el-table-column sortable prop="gold_eff" label="金币/h" min-width="79" v-if="repCol.gold_eff"></el-table-column>
+        <el-table-column sortable prop="origin" label="来源" min-width="90" v-if="repCol.origin"></el-table-column>
+        <el-table-column sortable prop="unlock" label="可解锁" v-if="repCol.unlock"></el-table-column>
+        <el-table-column sortable prop="combo" label="可合成" min-width="80" v-if="repCol.combo"></el-table-column>
+        <el-table-column sortable prop="normal_guests" label="贵客" min-width="125" v-if="repCol.guests"></el-table-column>
+        <el-table-column sortable prop="degree_guests" label="升阶贵客" min-width="110" v-if="repCol.degree_guests"></el-table-column>
+        <el-table-column sortable prop="gift" label="神级符文" min-width="92" v-if="repCol.gift"></el-table-column>
+        <el-table-column sortable prop="got" label="已有" min-width="68" v-if="repCol.got">
+          <template slot-scope="scope">
+            <el-checkbox v-model="scope.row.checked" @change="changeRepGot($event, scope.row.recipeId)"></el-checkbox>
+          </template>
+        </el-table-column>
+        <el-table-column label="" min-width="1"></el-table-column>
+      </el-table>
+      <div class="pagination">
+        <el-pagination background small :page-size="recipesPageSize" :current-page.sync="recipesCurPage" :pager-count="5" layout="total, prev, pager, next" :total="recipesView.length"></el-pagination>
       </div>
     </div>
 
@@ -446,42 +546,105 @@
 
     <div v-show="navId === 5">
       <div class="cal-box">
-        <div class="cal" :style="'height: '+ (boxHeight - 50) + 'px;'">
+        <div class="cal gather-all" :style="'height: '+ (boxHeight - 50) + 'px;'">
           <div class="ctl-box">
-            <el-select size="mini" v-model="gatherGroup" style="width:100px" @change="onGatherGroup">
-              <el-option label="菜园区" value="veg"></el-option>
-              <el-option label="玉片区" value="jade"></el-option>
-              <el-option label="调料区" value="cond"></el-option>
-            </el-select>
-            <el-select size="mini" v-model="gatherArea" style="width:140px">
-              <el-option v-for="a in gatherAreas" :key="a.name" :label="a.name + (a.label ? '（'+a.label+'）' : '')" :value="a.name"></el-option>
-            </el-select>
-            <span class="btn" @click="recommendGather">按效率推荐</span>
-            <span class="btn load" @click="clearGather">清空此地</span>
+            <span class="btn" @click="recommendAllGather">全图最优</span>
+            <span class="btn load" @click="clearAllGather">清空全部</span>
           </div>
-          <div class="tips">每个地点 4 人，同一厨师不能同时去两个地点。</div>
-          <div class="cal-contain four">
-            <div class="chef-box" v-for="(slot, index) in currentGather" :key="'g-'+index">
-              <div class="chef" @click="openPicker('gather', index)">
-                <div v-if="chefById(slot)" class="show">
-                  <div class="show-chef">
-                    <div class="name-img">
-                      <span class="name">{{ chefById(slot).name }}</span>
-                      <div class="img icon-chef" :class="'chef_' + chefById(slot).id">
-                        <span v-show="chefById(slot).isPartialUlt || chefById(slot).isSelfUlt" class="ultimate">满</span>
+          <div class="tips">一页配齐所有采集点，每个厨师只能出现一次。点【全图最优】按已有厨师自动分配。</div>
+          <div class="gather-block" v-for="block in gatherBlocks" :key="block.group">
+            <div class="contain-title">{{ block.title }}</div>
+            <div v-for="area in block.areas" :key="area.name" class="gather-area">
+              <div class="gather-area-head">
+                <span>{{ area.name }}{{ area.label ? '（'+area.label+'）' : '' }}</span>
+                <span class="gather-area-preview">{{ gatherAreaPreview(area.name) }}</span>
+              </div>
+              <div class="cal-contain four">
+                <div class="chef-box" v-for="index in 4" :key="area.name + '-' + (index-1)">
+                  <div class="chef" @click="openGatherPicker(area.name, index-1)">
+                    <div v-if="chefById(gatherSlot(area.name, index-1))" class="show">
+                      <div class="show-chef">
+                        <div class="name-img">
+                          <span class="name">{{ chefById(gatherSlot(area.name, index-1)).name }}</span>
+                          <div class="img icon-chef" :class="'chef_' + chefById(gatherSlot(area.name, index-1)).id">
+                            <span v-show="chefById(gatherSlot(area.name, index-1)).isPartialUlt || chefById(gatherSlot(area.name, index-1)).isSelfUlt" class="ultimate">满</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
+                    <div class="chef-empty" v-else>
+                      <i class="el-icon-plus"></i>
+                      <span>选择厨师</span>
+                    </div>
                   </div>
-                  <div class="show-condiment">肉{{ chefById(slot).gather.meat }} 鱼{{ chefById(slot).gather.fish }} 菜{{ chefById(slot).gather.veg }} 面{{ chefById(slot).gather.creation }}</div>
-                </div>
-                <div class="chef-empty" v-else>
-                  <i class="el-icon-plus"></i>
-                  <span>选择厨师</span>
                 </div>
               </div>
             </div>
           </div>
-          <div class="tool" v-html="gatherPreviewHtml"></div>
+        </div>
+      </div>
+    </div>
+
+    <div v-show="navId === 13">
+      <div class="ultimate-box" :style="'height: '+ boxHeight + 'px;'">
+        <div class="title">无冲突金色符文</div>
+        <div class="hr"></div>
+        <div class="box-body">
+          <div class="p">勾选要刷的金符文，按染井/桑阳无冲突表推荐菜谱。同一方案里贵客不打架。</div>
+          <div class="checkbox-contain" style="margin-top: 8px;">
+            <span class="checkbox" v-for="item in goldRuneNames" :key="item" :class="goldRuneSelected[item] ? 'active' : ''" @click="goldRuneSelected[item] = !goldRuneSelected[item]">{{ item }}</span>
+            <span class="checkbox" :class="goldRuneOwnedOnly ? 'active' : ''" @click="goldRuneOwnedOnly = !goldRuneOwnedOnly">只看已有</span>
+          </div>
+          <div class="contain" style="margin-top: 10px;">
+            <div class="prepend-input append-input">
+              <div class="input-box">
+                <div class="prepend">贵客加成</div>
+                <input type="number" v-model.lazy="goldRuneBonus">
+                <div class="append">%</div>
+              </div>
+            </div>
+            <div class="prepend-input">
+              <div class="input-box">
+                <div class="prepend">份数</div>
+                <input type="number" v-model.lazy="goldRuneServings">
+              </div>
+            </div>
+          </div>
+          <div class="p">5火金符文估测贵客率：{{ goldRuneRate }}%（玩家测试，有误差）</div>
+          <div class="btn-box" style="padding-left: 3px;">
+            <span class="btn" @click="selectAllGoldRunes">全选符文</span>
+            <span class="btn load" @click="clearGoldRunes">清空勾选</span>
+          </div>
+        </div>
+        <div class="title">推荐方案</div>
+        <div class="hr"></div>
+        <div class="box-body">
+          <div class="p" v-if="!goldRunePlan.length">先勾选要刷的金符文。</div>
+          <el-table v-else :data="goldRunePlan" style="width: 100%" size="mini">
+            <el-table-column prop="rune" label="符文" width="90"></el-table-column>
+            <el-table-column prop="name" label="菜谱" min-width="110"></el-table-column>
+            <el-table-column prop="guests" label="贵客" min-width="90"></el-table-column>
+            <el-table-column prop="time_show" label="单时间" width="80"></el-table-column>
+            <el-table-column prop="total_time_show" label="总时间" width="90"></el-table-column>
+            <el-table-column prop="origin" label="来源" min-width="100"></el-table-column>
+            <el-table-column label="已有" width="55">
+              <template slot-scope="scope">{{ scope.row.got ? '是' : '否' }}</template>
+            </el-table-column>
+          </el-table>
+        </div>
+        <div class="title">该符文全部无冲突菜</div>
+        <div class="hr"></div>
+        <div class="box-body">
+          <el-table :data="goldRuneOptions" style="width: 100%" size="mini">
+            <el-table-column prop="rune" label="符文" width="90"></el-table-column>
+            <el-table-column prop="name" label="菜谱" min-width="110"></el-table-column>
+            <el-table-column prop="guests" label="贵客" min-width="90"></el-table-column>
+            <el-table-column prop="time_show" label="单时间" width="80"></el-table-column>
+            <el-table-column prop="origin" label="来源" min-width="100"></el-table-column>
+            <el-table-column label="已有" width="55">
+              <template slot-scope="scope">{{ scope.row.got ? '是' : '否' }}</template>
+            </el-table-column>
+          </el-table>
         </div>
       </div>
     </div>
@@ -652,13 +815,87 @@
       </div>
     </div>
 
-    <div v-if="[1,9,11].indexOf(navId) > -1" class="info-box" :style="'height: '+ boxHeight + 'px;'">
+    <div v-if="navId === 9">
+      <div class="info-box" :style="'height: '+ boxHeight + 'px;'">
+        <div class="title">说明</div>
+        <div class="hr"></div>
+        <div class="box-body">
+          <div class="p">本网页为<a href="https://foodgame.github.io">爆炒江湖图鉴网</a> by L 的精简手机版，开发者 小鱼，页面功能、数据等均参照原图鉴网（L神yyds！）。</div>
+          <div class="p">本网页大部分功能与原图鉴网保持一致，不一致的部分会在下面的页面详情里详细说明。</div>
+        </div>
+        <div class="box-body">
+          <div class="contain-title">备胎和APP</div>
+          <div class="p">正式：<a href="https://h5.baochaojianghu.com/">https://h5.baochaojianghu.com/</a>，现在不用收钱了！</div>
+          <div class="p">备胎：<a href="https://yuwenxifan.github.io/bcjhMobile">https://yuwenxifan.github.io/bcjhMobile</a>，国内使用可能会比较慢</div>
+        </div>
+        <div class="box-body">
+          <div class="contain-title">表格</div>
+          <div class="p">分页的每页行数在设置里调整。不建议选[所有]，调整展示列/排序时重新渲染表格会很卡。</div>
+          <div class="p">表格最左侧的固定列不可滑动（横向竖向都不行）。</div>
+        </div>
+        <div class="box-body">
+          <div class="contain-title">关键字搜索</div>
+          <div class="p">表格 多个关键字搜索用空格隔开，满足其中一个关键字的会搜索出来。</div>
+          <div class="p">下拉框 多个关键字搜索用空格隔开，多个关键字同时满足的才会搜索出来。</div>
+        </div>
+        <div class="box-body">
+          <div class="contain-title">菜谱</div>
+          <div class="p"><span class="remove"><i class="el-icon-minus"></i> 移除</span> 品阶、熟练等个人数据列</div>
+          <div class="p"><span class="add"><i class="el-icon-plus"></i> 新增</span> 技法、食材类型筛选新增[同时]按钮（例：[同时]按钮打开后选择炒、煮，则筛选同时使用了炒、煮技法的菜谱）。</div>
+        </div>
+        <div class="box-body">
+          <div class="contain-title">厨师</div>
+          <div class="p"><span class="remove"><i class="el-icon-minus"></i> 移除</span> 厨具、修炼等个人数据列，修炼数据仅在【个人】页维护最终值。</div>
+        </div>
+        <div class="box-body">
+          <div class="contain-title">厨具</div>
+          <div class="p"><span class="add"><i class="el-icon-plus"></i> 新增</span> 厨具技能筛选新增[同时]按钮。</div>
+          <div class="p"><span class="add"><i class="el-icon-plus"></i> 新增</span> 厨具技能筛选新增[增益]按钮（例：[增益]按钮打开后，选择炒技法，则只筛选增加炒技法的厨具）。</div>
+        </div>
+        <div class="box-body">
+          <div class="contain-title">采集</div>
+          <div class="p">原站采集页是各地出产对照。本站把采集改成了【探索】配队，详见下方。</div>
+        </div>
+        <div class="box-body">
+          <div class="contain-title">计算器 / 开业</div>
+          <div class="p">计算器<span class="bold">只使用【个人】页中的个人配置数据</span>，在厨师页打开全修炼不会应用到计算器上。</div>
+          <div class="p">本站【计算器】按原站开业三列：上场 3 人，点格换厨 / 厨具 / 红绿蓝遗玉。光环厨对场上所有人生效，Next 只打下一位。</div>
+          <div class="p">厨师头像右下角的[满]表示厨师上场类/个人类技能已修炼。</div>
+        </div>
+        <div class="box-body">
+          <div class="contain-title">探索</div>
+          <div class="p"><span class="add"><i class="el-icon-plus"></i> 本站新增</span> 菜园 / 玉片 / 调料全部地点在同一页配置，每地 4 人，同一厨师不能去两个地点。</div>
+          <div class="p">菜园看单采集维合计 + 素材获得%，点数够才出对应食材。玉片看双采集维合计，15 一档最高 240。调料看口味值，目标 1080。</div>
+          <div class="p">点【全图最优】按已有厨师自动分配全图，遗玉厨具按个人档已装备计算。</div>
+        </div>
+        <div class="box-body">
+          <div class="contain-title">金符文</div>
+          <div class="p"><span class="add"><i class="el-icon-plus"></i> 本站新增</span> 按无冲突金色符文表（染井、桑阳，2026-06-09）勾选要刷的符文，推荐不抢贵客的菜谱。</div>
+          <div class="p">贵客率是玩家测试的 5 火金符文估测，会有误差。</div>
+        </div>
+        <div class="box-body">
+          <div class="contain-title">个人</div>
+          <div class="p">本站仅保存用户上一次在【菜谱】【厨师】等页选择的[展示列]与已有数据，与个人页填入的修炼最终值。</div>
+          <div class="p">个人修炼数据在【个人】页维护，依照游戏中名厨录里的修炼加成数据填入即可（如果在意比丢/嘎喵汪的话，就分别填男厨/女厨/全体）。</div>
+          <div class="p">本网站可以将L版图鉴的数据在【个人】页使用 [L版图鉴数据转移] 功能导入，会导入已有厨师菜谱与汇总后的厨师修炼数据，导入后无法转回L版图鉴数据。</div>
+          <div class="p">如果没有L版图鉴的数据，首次使用本网站需手动填入修炼/装饰加成数据，厨师菜谱已有数据可以自动生成，具体见首页常见问题。</div>
+          <div class="p">个人数据保存在本地，正常情况不会丢失，如需更换浏览器/设备等可使用备份功能或上传云端后换设备获取。</div>
+          <div class="p">个人备份数据文件版部分浏览器不支持，推荐使用手动复制版。</div>
+        </div>
+        <div class="title">致谢</div>
+        <div class="hr"></div>
+        <div class="box-body">
+          <div class="p">感谢L的图鉴网，感谢Boketto提供的菜谱数据，感谢试菜组提供的厨神规则，感谢闲时和小熊提供的升阶贵客符文数据，感谢梨大只提供的数据。</div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="navId === 11" class="info-box" :style="'height: '+ boxHeight + 'px;'">
       <div style="padding: 15px 10px 0 10px">
         <div class="title">{{ navTitle }}</div>
         <div class="hr"></div>
         <div class="box-body">
-          <div class="p">此页与白菜菊花一致的完整功能仍在对照中。厨师 / 厨具 / 遗玉 / 装修 / 调料 / 任务 / 计算器 / 探索 / 个人已经按原站接好。</div>
-          <div class="p">探索在左侧【探索】；开业在【计算器】。</div>
+          <div class="p">宴会跑分仍在对照中。开业在【计算器】，采集在【探索】，刷金符文在【金符文】。</div>
         </div>
       </div>
     </div>

@@ -550,6 +550,40 @@
     }).slice(0, PEOPLE);
   }
 
+  function padTeamIds(team) {
+    var ids = (team || []).map(function (c) { return c && c.id ? c.id : null; });
+    while (ids.length < PEOPLE) {
+      ids.push(null);
+    }
+    return ids.slice(0, PEOPLE);
+  }
+
+  function assignAllGather(chefs, data) {
+    var used = {};
+    function remain() {
+      return (chefs || []).filter(function (c) { return c && !used[c.id]; });
+    }
+    function take(team) {
+      (team || []).forEach(function (c) {
+        if (c && c.id) {
+          used[c.id] = true;
+        }
+      });
+      return padTeamIds(team);
+    }
+    var result = {};
+    VEG_AREAS.forEach(function (area) {
+      result[area.name] = take(pickGardenTeam(remain(), area));
+    });
+    JADE_AREAS.forEach(function (area) {
+      result[area.name] = take(pickJadeTeam(remain(), area));
+    });
+    COND_AREAS.forEach(function (area) {
+      result[area.name] = take(pickCondTeam(remain(), area));
+    });
+    return result;
+  }
+
   function pickTeam(area, chefs) {
     if (area.group === 'veg') {
       return pickGardenTeam(chefs, area);
@@ -1155,6 +1189,201 @@
     return { list: list, suits: suits, decoTimes: decoTimes };
   }
 
+  var SKILL_CN = { stirfry: '炒', boil: '煮', knife: '切', fry: '炸', bake: '烤', steam: '蒸' };
+  var CONDIMENT_CN = { Sweet: '甜', Sour: '酸', Spicy: '辣', Salty: '咸', Bitter: '苦', Tasty: '鲜' };
+  var GOLD_RUNE_PLAN = [
+    { rune: '蒸馏杯', names: ['豆乳芝士蛋饼', '清蒸武昌鱼', '雪花鱼糕', '汽锅鸡', '腊味合蒸', '炒面面包'] },
+    { rune: '恐怖利刃', names: ['阴阳豆腐汤', '奇乐无穷', '刺身拼盘', '熊猫戏竹', '蟹黄鱼翅'] },
+    { rune: '鼓风机', names: ['腐衣黄鱼卷', '风沙牛排', '冷锅鱼', '夏日风情堡', '邪神烤鸡'] },
+    { rune: '千年煮鳖', names: ['得莫利炖鱼', '蟹黄鱼籽丸'] },
+    { rune: '香烤鱼排', names: ['勇士大餐', '德式拼盘', '煎牛排'] },
+    { rune: '五星炒果', names: ['暖锅子', '香辣蟹', '莲房鱼包', '肉蟹煲'] }
+  ];
+
+  function materialTypeOf(origin) {
+    if (['菜棚', '菜地', '森林'].indexOf(origin) > -1) {
+      return 'vegetable';
+    }
+    if (['鸡舍', '猪圈', '牧场'].indexOf(origin) > -1) {
+      return 'meat';
+    }
+    if (origin === '作坊') {
+      return 'creation';
+    }
+    if (origin === '池塘') {
+      return 'fish';
+    }
+    return '';
+  }
+
+  function buildRecipeCatalog(data, user) {
+    var matMap = {};
+    (data.materials || []).forEach(function (m) {
+      matMap[m.materialId] = m;
+    });
+    var guestByRecipe = {};
+    (data.guests || []).forEach(function (g) {
+      (g.gifts || []).forEach(function (gf) {
+        if (!guestByRecipe[gf.recipe]) {
+          guestByRecipe[gf.recipe] = [];
+        }
+        guestByRecipe[gf.recipe].push({ guest: g.name, antique: gf.antique });
+      });
+    });
+    var nameById = {};
+    (data.recipes || []).forEach(function (r) {
+      nameById[r.recipeId] = r.name;
+    });
+    var comboByRep = {};
+    (data.combos || []).forEach(function (c) {
+      (c.recipes || []).forEach(function (id) {
+        if (!comboByRep[id]) {
+          comboByRep[id] = [];
+        }
+        comboByRep[id].push(nameById[c.recipeId] || '');
+      });
+    });
+    var got = (user && user.repGot) || {};
+    return (data.recipes || []).map(function (item) {
+      var mats = (item.materials || []).map(function (m) {
+        var meta = matMap[m.material] || {};
+        return {
+          name: meta.name || '',
+          qty: m.quantity,
+          type: materialTypeOf(meta.origin || '')
+        };
+      });
+      var types = [];
+      mats.forEach(function (m) {
+        if (m.type && types.indexOf(m.type) < 0) {
+          types.push(m.type);
+        }
+      });
+      var skills = [];
+      Object.keys(SKILL_CN).forEach(function (key) {
+        if (item[key]) {
+          skills.push(SKILL_CN[key] + item[key]);
+        }
+      });
+      var time = toInt(item.time, 0);
+      var price = toInt(item.price, 0);
+      var limit = toInt(item.limit, 0);
+      var guests = guestByRecipe[item.name] || [];
+      return {
+        recipeId: item.recipeId,
+        name: item.name,
+        rarity: toInt(item.rarity, 0),
+        rarity_show: '★★★★★'.slice(0, toInt(item.rarity, 0)),
+        stirfry: item.stirfry || 0,
+        boil: item.boil || 0,
+        knife: item.knife || 0,
+        fry: item.fry || 0,
+        bake: item.bake || 0,
+        steam: item.steam || 0,
+        skills_show: skills.join(' '),
+        condiment: item.condiment || '',
+        condiment_show: CONDIMENT_CN[item.condiment] || '',
+        materials_show: mats.map(function (m) { return m.name + '*' + m.qty; }).join(' '),
+        materials_search: mats.map(function (m) { return m.name; }).join(' '),
+        materials_type: types,
+        price: price,
+        time: time,
+        time_show: formatTime(time),
+        limit: limit,
+        total_price: price * limit,
+        total_time_show: formatTime(time * limit),
+        gold_eff: time ? Math.round(3600 / time * price) : 0,
+        origin: String(item.origin || '').replace(/<br\s*\/?>/gi, '\n'),
+        unlock: item.unlock || '',
+        gift: item.gift || '',
+        normal_guests: guests.map(function (g) { return g.guest + '-' + g.antique; }).join('\n'),
+        degree_guests: (item.guests || []).map(function (g, i) {
+          return '优特神'.slice(i, i + 1) + '-' + g.guest;
+        }).join('\n'),
+        combo: (comboByRep[item.recipeId] || []).filter(Boolean).join('\n'),
+        got: !!got[item.recipeId],
+        checked: !!got[item.recipeId]
+      };
+    });
+  }
+
+  function goldGuestRate(bonusPct, servings) {
+    var bonus = toInt(bonusPct, 0);
+    var n = toInt(servings, 15);
+    var r7 = 0.100588 * bonus + 10.062;
+    var slope = 0.0083 * bonus + 0.83;
+    return Math.round((r7 + slope * (n - 7)) * 100) / 100;
+  }
+
+  function buildGoldRuneCatalog(data, user) {
+    var recipes = {};
+    (data.recipes || []).forEach(function (r) {
+      recipes[r.name] = r;
+    });
+    var guestByRecipe = {};
+    (data.guests || []).forEach(function (g) {
+      (g.gifts || []).forEach(function (gf) {
+        if (!guestByRecipe[gf.recipe]) {
+          guestByRecipe[gf.recipe] = [];
+        }
+        guestByRecipe[gf.recipe].push({ guest: g.name, antique: gf.antique });
+      });
+    });
+    var got = (user && user.repGot) || {};
+    return GOLD_RUNE_PLAN.map(function (group) {
+      return {
+        rune: group.rune,
+        recipes: group.names.map(function (name) {
+          var raw = recipes[name];
+          var guests = guestByRecipe[name] || [];
+          var time = raw ? toInt(raw.time, 0) : 0;
+          var limit = raw ? toInt(raw.limit, 0) : 0;
+          return {
+            name: name,
+            rune: group.rune,
+            recipeId: raw ? raw.recipeId : 0,
+            rarity: raw ? raw.rarity : 0,
+            time: time,
+            time_show: formatTime(time),
+            total_time_show: formatTime(time * limit),
+            origin: raw ? String(raw.origin || '').replace(/<br\s*\/?>/gi, ' ') : '',
+            guests: guests.map(function (g) { return g.guest; }).join('、'),
+            antique: (guests[0] && guests[0].antique) || group.rune,
+            got: raw ? !!got[raw.recipeId] : false
+          };
+        })
+      };
+    });
+  }
+
+  function recommendGoldRunes(groups, selectedRunes, onlyOwned) {
+    var selected = selectedRunes || [];
+    var plan = [];
+    var options = [];
+    groups.forEach(function (group) {
+      if (selected.length && selected.indexOf(group.rune) < 0) {
+        return;
+      }
+      var pool = group.recipes.filter(function (r) {
+        return onlyOwned ? r.got : true;
+      });
+      if (!pool.length) {
+        pool = group.recipes.slice();
+      }
+      options = options.concat(pool);
+      var best = pool.slice().sort(function (a, b) {
+        if (a.got !== b.got) {
+          return a.got ? -1 : 1;
+        }
+        return (a.time || 99999) - (b.time || 99999);
+      })[0];
+      if (best) {
+        plan.push(best);
+      }
+    });
+    return { plan: plan, options: options };
+  }
+
   function buildQuestCatalog(data) {
     return (data.quests || []).map(function (item) {
       var rewards = (item.rewards || []).map(function (r) {
@@ -1192,6 +1421,12 @@
     buildOwnedChefs: buildOwnedChefs,
     previewGather: previewGather,
     pickTeam: pickTeam,
+    assignAllGather: assignAllGather,
+    buildRecipeCatalog: buildRecipeCatalog,
+    buildGoldRuneCatalog: buildGoldRuneCatalog,
+    recommendGoldRunes: recommendGoldRunes,
+    goldGuestRate: goldGuestRate,
+    GOLD_RUNE_PLAN: GOLD_RUNE_PLAN,
     findArea: findArea,
     analyzeOpenTeam: analyzeOpenTeam,
     isOpenChef: isOpenChef,

@@ -4,3 +4,10 @@
 .hidden { width: 0; height: 0; opacity: 0; position: absolute; }
 .ultimate-box .select-box { display: inline-block; margin: 4px 8px 4px 0; vertical-align: top; }
 .ultimate-box .select-box .el-select { width: 250px; }
+.gather-all { overflow: auto; }
+.gather-block { margin-bottom: 8px; }
+.gather-area { margin: 0 6px 10px; }
+.gather-area-head { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; font-size: 13px; color: #606266; }
+.gather-area-preview { color: #82a1b0; font-size: 12px; }
+.gather-all .cal-contain.four .chef-box { width: 25%; }
+.gather-all .chef { min-height: 88px; }

@@ -114,15 +114,77 @@
         chefsPageSize: 20,
         equipsPageSize: 20,
         ambersPageSize: 20,
+        condimentsPageSize: 20,
+        decorationsPageSize: 20,
+        questsPageSize: 20,
         chefsCurPage: 1,
         equipsCurPage: 1,
         ambersCurPage: 1,
+        condimentsCurPage: 1,
+        decorationsCurPage: 1,
+        questsCurPage: 1,
+        condimentCol: { id: false, img: false, rarity: true, skill: true, origin: true },
+        condimentColName: { id: '编号', img: '图', rarity: '星', skill: '技能', origin: '来源' },
+        condimentFilter: {
+          condimentKeyword: '',
+          rarity: { 1: true, 2: true, 3: true },
+          skillType: {
+            UseStirfry: { name: '炒售价', flag: true },
+            UseBoil: { name: '煮售价', flag: true },
+            UseKnife: { name: '切售价', flag: true },
+            UseFry: { name: '炸售价', flag: true },
+            UseBake: { name: '烤售价', flag: true },
+            UseSteam: { name: '蒸售价', flag: true },
+            UseSweet: { name: '甜售价', flag: true },
+            UseSour: { name: '酸售价', flag: true },
+            UseSpicy: { name: '辣售价', flag: true },
+            UseSalty: { name: '咸售价', flag: true },
+            UseBitter: { name: '苦售价', flag: true },
+            UseTasty: { name: '鲜售价', flag: true }
+          }
+        },
+        condiment_radio: false,
+        condiment_concurrent: false,
+        decorationCol: {
+          checkbox: true, id: false, img: false, gold: true, tipMin: false, tipMax: false,
+          tipTime: false, effMin: false, effMax: false, effAvg: true, position: false,
+          suit: true, suitGold: true, origin: true
+        },
+        decorationColName: {
+          checkbox: '选择', id: '编号', img: '图', gold: '收入加成', tipMin: '最小玉璧',
+          tipMax: '最大玉璧', tipTime: '冷却时间', effMin: '最小玉璧/天', effMax: '最大玉璧/天',
+          effAvg: '平均玉璧/天', position: '位置', suit: '套装', suitGold: '套装加成', origin: '来源'
+        },
+        decorationFilter: {
+          keyword: '',
+          timeIds: [],
+          position: [
+            { name: '1大桌', flag: true }, { name: '1小桌', flag: true }, { name: '1门', flag: true },
+            { name: '1灯', flag: true }, { name: '1窗', flag: true }, { name: '2大桌', flag: true },
+            { name: '2小桌', flag: true }, { name: '2门', flag: true }, { name: '2窗', flag: true },
+            { name: '3灯', flag: true }, { name: '3大桌', flag: true }, { name: '3小桌', flag: true },
+            { name: '1装饰', flag: true }, { name: '2装饰', flag: true }, { name: '2屏风', flag: true },
+            { name: '3包间', flag: true }
+          ]
+        },
+        decoration_radio: false,
+        decoSelect: [],
+        decoSelectId: [],
+        decoSelectText: '',
+        decoSuit: '',
+        decoTimeList: [],
+        suits: [],
+        questsType: '主线任务',
+        questsKeyword: '',
         data: null,
         user: null,
         chefs: [],
         chefMap: {},
         ambers: [],
         equips: [],
+        condiments: [],
+        decorations: [],
+        quests: [],
         openPresets: [{ id: 'default', name: '默认开业', slots: [null, null, null] }],
         activeOpenId: 'default',
         gatherTeams: {},
@@ -179,6 +241,87 @@
       ambersPage: function () {
         var start = (this.ambersCurPage - 1) * this.ambersPageSize;
         return this.ambersView.slice(start, start + this.ambersPageSize);
+      },
+      condimentsView: function () {
+        var that = this;
+        var selected = Object.keys(this.condimentFilter.skillType).filter(function (key) {
+          return that.condimentFilter.skillType[key].flag;
+        });
+        return this.condiments.filter(function (item) {
+          if (!that.condimentFilter.rarity[item.rarity]) {
+            return false;
+          }
+          if (!matchKeyword([item.name, item.skill, item.origin].join(' '), that.condimentFilter.condimentKeyword)) {
+            return false;
+          }
+          if (!selected.length) {
+            return false;
+          }
+          if (that.condiment_concurrent) {
+            return selected.every(function (key) { return item.skill_type[key]; });
+          }
+          return selected.some(function (key) { return item.skill_type[key]; });
+        });
+      },
+      condimentsPage: function () {
+        var start = (this.condimentsCurPage - 1) * this.condimentsPageSize;
+        return this.condimentsView.slice(start, start + this.condimentsPageSize);
+      },
+      decorationsView: function () {
+        var that = this;
+        var positions = this.decorationFilter.position.filter(function (p) { return p.flag; }).map(function (p) { return p.name; });
+        var times = this.decorationFilter.timeIds || [];
+        var list = this.decorations.filter(function (item) {
+          if (positions.indexOf(item.position) < 0) {
+            return false;
+          }
+          if (times.length && times.indexOf(item.tipTime) < 0) {
+            return false;
+          }
+          return matchKeyword([item.name, item.suit, item.origin].join(' '), that.decorationFilter.keyword);
+        }).map(function (item) {
+          return Object.assign({}, item, { checked: that.decoSelectId.indexOf(item.id) > -1 });
+        });
+        return list.sort(function (a, b) {
+          var ac = that.decoSelectId.indexOf(a.id) > -1 ? 1 : 0;
+          var bc = that.decoSelectId.indexOf(b.id) > -1 ? 1 : 0;
+          if (ac !== bc) {
+            return bc - ac;
+          }
+          return (Number(b.effAvg) || 0) - (Number(a.effAvg) || 0);
+        });
+      },
+      decorationsPage: function () {
+        var start = (this.decorationsCurPage - 1) * this.decorationsPageSize;
+        return this.decorationsView.slice(start, start + this.decorationsPageSize);
+      },
+      questsTypes: function () {
+        var prefer = ['主线任务', '旧支线任务', '新支线任务', '厨师修炼', '修炼任务', '遗玉支线'];
+        var seen = {};
+        var rest = [];
+        this.quests.forEach(function (item) {
+          if (!item.type || seen[item.type]) {
+            return;
+          }
+          seen[item.type] = true;
+          if (prefer.indexOf(item.type) < 0) {
+            rest.push(item.type);
+          }
+        });
+        return prefer.filter(function (t) { return seen[t]; }).concat(rest);
+      },
+      questsView: function () {
+        var that = this;
+        return this.quests.filter(function (item) {
+          if (item.type !== that.questsType) {
+            return false;
+          }
+          return matchKeyword([item.questId, item.questIdDisp, item.goal, item.rewards_show].join(' '), that.questsKeyword);
+        });
+      },
+      questsPage: function () {
+        var start = (this.questsCurPage - 1) * this.questsPageSize;
+        return this.questsView.slice(start, start + this.questsPageSize);
       },
       currentOpen: function () {
         var that = this;
@@ -257,7 +400,13 @@
       chefCol: { deep: true, handler: function () { this.tableKey += 1; this.persist(); } },
       equipCol: { deep: true, handler: function () { this.tableKey += 1; } },
       amberCol: { deep: true, handler: function () { this.tableKey += 1; } },
+      condimentCol: { deep: true, handler: function () { this.tableKey += 1; } },
+      decorationCol: { deep: true, handler: function () { this.tableKey += 1; } },
       chefFilter: { deep: true, handler: function () { this.chefsCurPage = 1; } },
+      condimentFilter: { deep: true, handler: function () { this.condimentsCurPage = 1; } },
+      decorationFilter: { deep: true, handler: function () { this.decorationsCurPage = 1; } },
+      questsKeyword: function () { this.questsCurPage = 1; },
+      questsType: function () { this.questsCurPage = 1; },
       gatherGroup: function () {
         var list = this.gatherAreas;
         if (list.length && !list.some(function (a) { return a.name === this.gatherArea; }.bind(this))) {
@@ -279,6 +428,129 @@
         var names = this[key + 'Name'];
         var allOn = Object.keys(names).every(function (k) { return col[k]; });
         Object.keys(names).forEach(function (k) { col[k] = !allOn; });
+      },
+      selectAllFlags: function (target) {
+        if (target === 'condimentFilter.skillType') {
+          this.condiment_radio = false;
+          this.condiment_concurrent = false;
+          var skill = this.condimentFilter.skillType;
+          var anyOff = Object.keys(skill).some(function (k) { return !skill[k].flag; });
+          Object.keys(skill).forEach(function (k) { skill[k].flag = anyOff; });
+        } else if (target === 'decorationFilter.position') {
+          this.decoration_radio = false;
+          var pos = this.decorationFilter.position;
+          var anyOff = pos.some(function (p) { return !p.flag; });
+          pos.forEach(function (p) { p.flag = anyOff; });
+        }
+      },
+      checkCondiSkillType: function (key) {
+        var skill = this.condimentFilter.skillType;
+        if (this.condiment_radio) {
+          Object.keys(skill).forEach(function (k) {
+            skill[k].flag = k === key ? !skill[k].flag : false;
+          });
+        } else {
+          skill[key].flag = !skill[key].flag;
+        }
+      },
+      changeCondimentRadio: function (val) {
+        if (!val) {
+          return;
+        }
+        this.condiment_concurrent = false;
+        var skill = this.condimentFilter.skillType;
+        var on = Object.keys(skill).filter(function (k) { return skill[k].flag; });
+        if (on.length > 1) {
+          Object.keys(skill).forEach(function (k) { skill[k].flag = false; });
+        }
+      },
+      changeCondimentConcurrent: function (val) {
+        if (!val) {
+          return;
+        }
+        this.condiment_radio = false;
+        var skill = this.condimentFilter.skillType;
+        var on = Object.keys(skill).filter(function (k) { return skill[k].flag; });
+        if (on.length > 2) {
+          Object.keys(skill).forEach(function (k) { skill[k].flag = false; });
+        }
+      },
+      changeDecorationRadio: function (val) {
+        if (!val) {
+          return;
+        }
+        var pos = this.decorationFilter.position;
+        var on = pos.filter(function (p) { return p.flag; });
+        if (on.length > 1) {
+          pos.forEach(function (p) { p.flag = false; });
+        }
+      },
+      checkPosition: function (i) {
+        var pos = this.decorationFilter.position;
+        if (this.decoration_radio) {
+          pos.forEach(function (p, j) {
+            p.flag = j === i ? !p.flag : false;
+          });
+        } else {
+          pos[i].flag = !pos[i].flag;
+        }
+      },
+      updateDecoSummary: function () {
+        var that = this;
+        var avg = 0;
+        var gold = 0;
+        this.decoSelect.forEach(function (r) {
+          gold += Number(r.gold) || 0;
+          avg += Number(r.effAvg) || 0;
+        });
+        avg = Math.round(avg * 10) / 10;
+        var suitNames = [];
+        this.decoSelect.forEach(function (r) {
+          if (r.suit && suitNames.indexOf(r.suit) < 0) {
+            suitNames.push(r.suit);
+          }
+        });
+        suitNames.forEach(function (s) {
+          var suitGold = 0;
+          var missing = that.decorations.filter(function (item) {
+            if (!suitGold && item.suit === s) {
+              suitGold = item.suitGold;
+            }
+            return item.suit === s && that.decoSelectId.indexOf(item.id) < 0;
+          });
+          if (!missing.length) {
+            gold += suitGold;
+          }
+        });
+        this.decoSelectText = '平均玉璧/天: ' + avg + ' 收入加成: ' + (Math.round(gold * 1000) / 10) + '%';
+      },
+      handleDecoSelect: function (val, row) {
+        if (val) {
+          this.decoSelect = this.decoSelect.filter(function (r) { return r.position !== row.position; });
+          this.decoSelect.push(row);
+        } else {
+          this.decoSelect = this.decoSelect.filter(function (r) { return r.id !== row.id; });
+        }
+        this.decoSelectId = this.decoSelect.map(function (r) { return r.id; });
+        this.updateDecoSummary();
+      },
+      checkDecoRow: function (row) {
+        if (!row) {
+          return;
+        }
+        this.handleDecoSelect(!row.checked, row);
+      },
+      emptyDeco: function () {
+        this.decoSelect = [];
+        this.decoSelectId = [];
+        this.decoSuit = '';
+        this.decoSelectText = '';
+      },
+      selectSuit: function (val) {
+        var that = this;
+        this.decoSelect = this.decorations.filter(function (r) { return r.suit === val; });
+        this.decoSelectId = this.decoSelect.map(function (r) { return r.id; });
+        this.updateDecoSummary();
       },
       chefById: function (id) {
         return id ? this.chefMap[Number(id)] || null : null;
@@ -370,6 +642,12 @@
         this.equips = E.buildEquipCatalog(this.data, this.user).map(function (e) {
           return Object.assign({}, e, { rarity_show: stars(e.rarity), wornText: (e.wornBy || []).join('、') });
         });
+        this.condiments = E.buildCondimentCatalog(this.data);
+        var deco = E.buildDecorationCatalog(this.data);
+        this.decorations = deco.list;
+        this.suits = deco.suits;
+        this.decoTimeList = deco.decoTimes;
+        this.quests = E.buildQuestCatalog(this.data);
         var owned = this.chefs.filter(function (c) { return c.got; }).length;
         var recipes = Object.keys(this.user.repGot || {}).filter(function (k) { return this.user.repGot[k]; }.bind(this)).length;
         this.dataStatus = '已有厨师 ' + owned + ' / ' + this.chefs.length + ' · 菜谱 ' + recipes;

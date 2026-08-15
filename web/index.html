@@ -86,10 +86,53 @@
             </div>
           </div>
         </div>
+        <div v-show="navId === 10">
+          <div class="box">
+            <div class="box-title">展示列</div>
+            <div class="hr"></div>
+            <span class="checkbox" @click="selectAllCol('condimentCol')">全选</span>
+            <span v-for="(val, key) in condimentColName" :key="key" class="checkbox" :class="condimentCol[key] ? 'active' : ''" @click="condimentCol[key] = !condimentCol[key]">{{ val }}</span>
+          </div>
+          <div class="box">
+            <div class="box-title">筛选</div>
+            <div class="hr"></div>
+            <div class="checkbox-contain">
+              <span class="checkbox" v-for="n in 3" :key="n" :class="condimentFilter.rarity[n] ? 'active' : ''" @click="condimentFilter.rarity[n] = !condimentFilter.rarity[n]">{{ n }}星</span>
+            </div>
+            <div class="checkbox-contain">
+              <span class="checkbox" v-for="(val, key) in condimentFilter.skillType" :key="key" :class="val.flag ? 'active' : ''" @click="checkCondiSkillType(key)">{{ val.name }}</span>
+              <span class="checkbox" @click="selectAllFlags('condimentFilter.skillType')">全选</span>
+              <el-switch v-model="condiment_radio" active-color="#82a1b0" active-text="单选" @change="changeCondimentRadio" inactive-color="#ddd"></el-switch>
+              <el-switch v-model="condiment_concurrent" active-color="#82a1b0" active-text="同时" @change="changeCondimentConcurrent" inactive-color="#ddd"></el-switch>
+            </div>
+          </div>
+        </div>
+        <div v-show="navId === 4">
+          <div class="box">
+            <div class="box-title">展示列</div>
+            <div class="hr"></div>
+            <span class="checkbox" @click="selectAllCol('decorationCol')">全选</span>
+            <span v-for="(val, key) in decorationColName" :key="key" class="checkbox" :class="decorationCol[key] ? 'active' : ''" @click="decorationCol[key] = !decorationCol[key]">{{ val }}</span>
+          </div>
+          <div class="box">
+            <div class="box-title">筛选</div>
+            <div class="hr"></div>
+            <div class="checkbox-contain">
+              <el-select v-model="decorationFilter.timeIds" multiple collapse-tags filterable size="mini" placeholder="选择冷却时间" style="width: 130px;">
+                <el-option v-for="item in decoTimeList" :key="item.id" :label="item.name" :value="item.id"></el-option>
+              </el-select>
+            </div>
+            <div class="checkbox-contain" style="margin-bottom: 210px;">
+              <span v-for="(item, i) in decorationFilter.position" :key="item.name" class="checkbox" :class="item.flag ? 'active' : ''" @click="checkPosition(i)">{{ item.name }}</span>
+              <span class="checkbox" @click="selectAllFlags('decorationFilter.position')">全选</span>
+              <el-switch v-model="decoration_radio" active-color="#82a1b0" active-text="单选" @change="changeDecorationRadio" inactive-color="#ddd"></el-switch>
+            </div>
+          </div>
+        </div>
       </div>
     </el-drawer>
 
-    <div v-if="[2, 3, 12].indexOf(navId) > -1" class="suspend icon-btn" @click="rightBar = true">
+    <div v-if="[2, 3, 4, 10, 12].indexOf(navId) > -1" class="suspend icon-btn" @click="rightBar = true">
       <i class="el-icon-search"></i>
     </div>
 
@@ -112,7 +155,25 @@
           <el-option v-for="item in page_list" :key="item.id" :label="item.name" :value="item.id"></el-option>
         </el-select>
       </div>
-      <div class="input-box" v-if="[2,3,12].indexOf(navId) < 0">
+      <div class="input-box" v-show="navId==4">
+        <span class="label">装修分页</span>
+        <el-select size="mini" v-model="decorationsPageSize">
+          <el-option v-for="item in page_list" :key="item.id" :label="item.name" :value="item.id"></el-option>
+        </el-select>
+      </div>
+      <div class="input-box" v-show="navId==10">
+        <span class="label">调料分页</span>
+        <el-select size="mini" v-model="condimentsPageSize">
+          <el-option v-for="item in page_list" :key="item.id" :label="item.name" :value="item.id"></el-option>
+        </el-select>
+      </div>
+      <div class="input-box" v-show="navId==6">
+        <span class="label">任务分页</span>
+        <el-select size="mini" v-model="questsPageSize">
+          <el-option v-for="item in page_list" :key="item.id" :label="item.name" :value="item.id"></el-option>
+        </el-select>
+      </div>
+      <div class="input-box" v-if="[2,3,4,6,10,12].indexOf(navId) < 0">
         <span class="label">每页行数</span>
         <el-select size="mini" v-model="chefsPageSize">
           <el-option v-for="item in page_list" :key="item.id" :label="item.name" :value="item.id"></el-option>
@@ -125,8 +186,9 @@
   <div class="extra-header"></div>
   <section class="header">
     <i class="icon-btn el-icon-s-operation" @click="leftBar = !leftBar"></i>
+    <div class="notice" v-if="navId == 4 && decoSelectText && decoSelectId.length > 0">{{ decoSelectText }}</div>
     <span class="right">
-      <i v-if="[2, 3, 12].indexOf(navId) > -1" class="icon-btn el-icon-search" style="margin-left: 6px;" @click="rightBar = true"></i>
+      <i v-if="[2, 3, 4, 10, 12].indexOf(navId) > -1" class="icon-btn el-icon-search" style="margin-left: 6px;" @click="rightBar = true"></i>
       <i class="icon-btn el-icon-s-tools" @click="settingVisible = true"></i>
     </span>
   </section>
@@ -235,6 +297,92 @@
       </el-table>
       <div class="pagination">
         <el-pagination background small :page-size="ambersPageSize" :current-page.sync="ambersCurPage" :pager-count="5" layout="total, prev, pager, next" :total="ambersView.length"></el-pagination>
+      </div>
+    </div>
+
+    <div v-show="navId === 4">
+      <div class="search-box">
+        <el-row>
+          <el-col :span="4">
+            <span class="button" @click="emptyDeco">清空<i class="el-icon-delete el-icon--right"></i></span>
+          </el-col>
+          <el-col :span="8">
+            <el-select placeholder="选择套装" @change="selectSuit" size="small" class="left right" v-model="decoSuit">
+              <el-option v-for="(item, i) in suits" :key="i" :label="item" :value="item"></el-option>
+            </el-select>
+          </el-col>
+          <el-col :span="12">
+            <el-input size="small" prefix-icon="el-icon-search" placeholder="名字 套装 来源" v-model="decorationFilter.keyword"></el-input>
+          </el-col>
+        </el-row>
+      </div>
+      <el-table :key="'deco-'+tableKey" :data="decorationsPage" style="width: 100%" :height="tableHeight" v-if="tableShow" highlight-current-row @row-click="checkDecoRow">
+        <el-table-column fixed prop="checkbox" width="35" v-if="decorationCol.checkbox">
+          <template slot-scope="scope">
+            <div @click.stop>
+              <el-checkbox v-model="scope.row.checked" @change="handleDecoSelect($event, scope.row)"></el-checkbox>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column fixed sortable prop="id" label="No." width="55" v-if="decorationCol.id"></el-table-column>
+        <el-table-column fixed label="" width="49" v-if="decorationCol.img">
+          <template slot-scope="scope"><div style="zoom: 0.6;" class="icon-decoration" :class="'decoration_' + scope.row.icon"></div></template>
+        </el-table-column>
+        <el-table-column fixed sortable prop="name" label="名字" width="80"></el-table-column>
+        <el-table-column sortable prop="gold_show" label="加成" min-width="64" v-if="decorationCol.gold"></el-table-column>
+        <el-table-column sortable prop="tipMin" label="最小玉" min-width="78" v-if="decorationCol.tipMin"></el-table-column>
+        <el-table-column sortable prop="tipMax" label="最大玉" min-width="78" v-if="decorationCol.tipMax"></el-table-column>
+        <el-table-column sortable prop="tipTime_show" label="冷却" min-width="78" v-if="decorationCol.tipTime"></el-table-column>
+        <el-table-column sortable prop="effMin" label="最小玉/天" min-width="95" v-if="decorationCol.effMin"></el-table-column>
+        <el-table-column sortable prop="effMax" label="最大玉/天" min-width="95" v-if="decorationCol.effMax"></el-table-column>
+        <el-table-column sortable prop="effAvg" label="平均玉/天" min-width="95" v-if="decorationCol.effAvg"></el-table-column>
+        <el-table-column sortable prop="position" label="位置" min-width="64" v-if="decorationCol.position"></el-table-column>
+        <el-table-column sortable prop="suit" label="套装" min-width="90" v-if="decorationCol.suit"></el-table-column>
+        <el-table-column sortable prop="suitGold_show" label="套装加成" min-width="90" v-if="decorationCol.suitGold"></el-table-column>
+        <el-table-column sortable prop="origin" label="来源" min-width="100" v-if="decorationCol.origin"></el-table-column>
+        <el-table-column label="" min-width="1"></el-table-column>
+      </el-table>
+      <div class="pagination">
+        <el-pagination background small :page-size="decorationsPageSize" :current-page.sync="decorationsCurPage" :pager-count="5" layout="total, prev, pager, next" :total="decorationsView.length"></el-pagination>
+      </div>
+    </div>
+
+    <div v-show="navId === 6">
+      <div class="search-box">
+        <el-input size="small" prefix-icon="el-icon-search" placeholder="编号 任务 奖励" v-model="questsKeyword" class="input-with-select">
+          <el-select slot="prepend" v-model="questsType" filterable placeholder="请选择任务类型" size="small">
+            <el-option v-for="item in questsTypes" :key="item" :label="item" :value="item"></el-option>
+          </el-select>
+        </el-input>
+      </div>
+      <el-table :key="'quest-'+tableKey" :data="questsPage" style="width: 100%" :height="tableHeight" v-if="tableShow">
+        <el-table-column prop="questIdDisp" label="No." width="63" sortable></el-table-column>
+        <el-table-column prop="preId" label="前置" width="50" v-if="questsType === '旧支线任务'"></el-table-column>
+        <el-table-column prop="goal" label="任务"></el-table-column>
+        <el-table-column prop="rewards_show" label="奖励" width="110"></el-table-column>
+      </el-table>
+      <div class="pagination">
+        <el-pagination background small :page-size="questsPageSize" :current-page.sync="questsCurPage" :pager-count="5" layout="total, prev, pager, next" :total="questsView.length"></el-pagination>
+      </div>
+    </div>
+
+    <div v-show="navId === 10">
+      <div class="search-box">
+        <el-input size="small" prefix-icon="el-icon-search" placeholder="名字 技能 来源" v-model="condimentFilter.condimentKeyword"></el-input>
+      </div>
+      <el-table :key="'condi-'+tableKey" :data="condimentsPage" style="width: 100%" :height="tableHeight" v-if="tableShow">
+        <el-table-column fixed sortable prop="condimentId" label="No." width="55" v-if="condimentCol.id"></el-table-column>
+        <el-table-column fixed label="" width="45" v-if="condimentCol.img">
+          <template slot-scope="scope"><div class="icon-condiment" :class="'condiment_' + scope.row.condimentId"></div></template>
+        </el-table-column>
+        <el-table-column fixed sortable prop="name" label="名字" width="65"></el-table-column>
+        <el-table-column sortable prop="rarity_show" label="星" min-width="55" v-if="condimentCol.rarity"></el-table-column>
+        <el-table-column sortable prop="skill" label="技能" min-width="155" v-if="condimentCol.skill"></el-table-column>
+        <el-table-column sortable prop="origin" label="来源" min-width="100" v-if="condimentCol.origin"></el-table-column>
+        <el-table-column label="" min-width="1"></el-table-column>
+      </el-table>
+      <div class="pagination">
+        <el-pagination background small :page-size="condimentsPageSize" :current-page.sync="condimentsCurPage" :pager-count="5" layout="total, prev, pager, next" :total="condimentsView.length"></el-pagination>
       </div>
     </div>
 
@@ -504,12 +652,12 @@
       </div>
     </div>
 
-    <div v-if="[1,4,6,9,10,11].indexOf(navId) > -1" class="info-box" :style="'height: '+ boxHeight + 'px;'">
+    <div v-if="[1,9,11].indexOf(navId) > -1" class="info-box" :style="'height: '+ boxHeight + 'px;'">
       <div style="padding: 15px 10px 0 10px">
         <div class="title">{{ navTitle }}</div>
         <div class="hr"></div>
         <div class="box-body">
-          <div class="p">此页与白菜菊花一致的完整功能仍在对照中。厨师 / 厨具 / 遗玉 / 计算器 / 探索 / 个人已经按原站接好。</div>
+          <div class="p">此页与白菜菊花一致的完整功能仍在对照中。厨师 / 厨具 / 遗玉 / 装修 / 调料 / 任务 / 计算器 / 探索 / 个人已经按原站接好。</div>
           <div class="p">探索在左侧【探索】；开业在【计算器】。</div>
         </div>
       </div>

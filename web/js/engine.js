@@ -1039,6 +1039,138 @@
     return user;
   }
 
+  function formatTime(sec) {
+    sec = toInt(sec, 0);
+    if (!sec) {
+      return '';
+    }
+    var rst = '';
+    var day = 86400;
+    var hour = 3600;
+    var min = 60;
+    if (sec >= day) {
+      rst += Math.floor(sec / day) + '天';
+      sec %= day;
+    }
+    if (sec >= hour) {
+      rst += Math.floor(sec / hour) + '小时';
+      sec %= hour;
+    }
+    if (sec >= min) {
+      rst += Math.floor(sec / min) + '分';
+      sec %= min;
+    }
+    if (sec > 0) {
+      rst += sec + '秒';
+    }
+    return rst;
+  }
+
+  function percentShow(val) {
+    var n = Number(val);
+    if (!n) {
+      return '';
+    }
+    var s = 100000;
+    return Math.round(n * s * 100) / s + '%';
+  }
+
+  function buildCondimentCatalog(data) {
+    var skillMap = skillMapOf(data);
+    return (data.condiments || []).map(function (item) {
+      var skills = (item.skill || []).map(function (sid) {
+        return skillMap[Number(sid)];
+      }).filter(Boolean);
+      var skillType = {};
+      var descs = [];
+      skills.forEach(function (skill) {
+        descs.push(String(skill.desc || ''));
+        (skill.effect || []).forEach(function (effect) {
+          if (!effect || !effect.type) {
+            return;
+          }
+          if (effect.type === 'OpenTime') {
+            skillType[effect.type] = effect.value < 0 ? 'buff' : 'debuff';
+          } else {
+            skillType[effect.type] = effect.value > 0 ? 'buff' : 'debuff';
+          }
+        });
+      });
+      return {
+        condimentId: Number(item.condimentId),
+        name: item.name,
+        rarity: toInt(item.rarity, 0),
+        rarity_show: '★★★'.slice(0, toInt(item.rarity, 0)),
+        skill: descs.join('\n'),
+        origin: String(item.origin || ''),
+        skill_type: skillType
+      };
+    });
+  }
+
+  function buildDecorationCatalog(data) {
+    var day = 86400;
+    var timeMap = {};
+    var suits = [];
+    var list = (data.decorations || []).map(function (item) {
+      var tipTime = toInt(item.tipTime, 0);
+      var tipMin = toInt(item.tipMin, 0);
+      var tipMax = toInt(item.tipMax, 0);
+      var effMin = tipMin && tipTime ? parseFloat((tipMin / (tipTime / day)).toFixed(1)) : null;
+      var effMax = tipMax && tipTime ? parseFloat((tipMax / (tipTime / day)).toFixed(1)) : null;
+      var effAvg = (effMin != null && effMax != null)
+        ? Math.floor(((effMin + effMax) * 10 / 2)) / 10
+        : null;
+      if (tipTime) {
+        timeMap[tipTime] = true;
+      }
+      if (item.suit && suits.indexOf(item.suit) < 0) {
+        suits.push(item.suit);
+      }
+      return {
+        id: Number(item.id),
+        icon: item.icon,
+        name: item.name,
+        gold: Number(item.gold) || 0,
+        gold_show: percentShow(item.gold),
+        tipMin: tipMin || '',
+        tipMax: tipMax || '',
+        tipTime: tipTime,
+        tipTime_show: formatTime(tipTime),
+        effMin: effMin,
+        effMax: effMax,
+        effAvg: effAvg,
+        position: item.position,
+        suit: item.suit || '',
+        suitGold: Number(item.suitGold) || 0,
+        suitGold_show: percentShow(item.suitGold),
+        origin: String(item.origin || '')
+      };
+    });
+    var decoTimes = Object.keys(timeMap).map(Number).sort(function (a, b) {
+      return a - b;
+    }).map(function (t) {
+      return { id: t, name: formatTime(t) };
+    });
+    return { list: list, suits: suits, decoTimes: decoTimes };
+  }
+
+  function buildQuestCatalog(data) {
+    return (data.quests || []).map(function (item) {
+      var rewards = (item.rewards || []).map(function (r) {
+        return r.quantity ? (r.name + ' * ' + r.quantity) : r.name;
+      });
+      return {
+        questId: item.questId,
+        questIdDisp: item.questIdDisp != null ? item.questIdDisp : item.questId,
+        preId: item.preId || '',
+        type: String(item.type || ''),
+        goal: String(item.goal || ''),
+        rewards_show: rewards.join('\n')
+      };
+    });
+  }
+
   function setChefDiskLv(user, chefId, level) {
     user = user || {};
     user.chefDiskLv = user.chefDiskLv || {};
@@ -1071,8 +1203,12 @@
     listUltimateOptions: listUltimateOptions,
     imageUrl: imageUrl,
     AMBER_COLORS: AMBER_COLORS,
+    formatTime: formatTime,
     buildAmberCatalog: buildAmberCatalog,
     buildEquipCatalog: buildEquipCatalog,
+    buildCondimentCatalog: buildCondimentCatalog,
+    buildDecorationCatalog: buildDecorationCatalog,
+    buildQuestCatalog: buildQuestCatalog,
     setChefAmber: setChefAmber,
     setChefEquip: setChefEquip,
     setChefDiskLv: setChefDiskLv

@@ -19,7 +19,7 @@ node scripts/serve.js
 
 线上（GitHub Pages）：https://leiheng22.github.io/baochaojianghu/
 
-界面和操作对齐 [白菜菊花](https://h5.baochaojianghu.com/)：左上角打开抽屉选页；表格用展示列、筛选、已有、空格或搜索、底部分页；开业三人点格换厨/厨具/遗玉。探索是本站加的各地四人采集。
+界面直接使用 [白菜菊花](https://h5.baochaojianghu.com/) 的样式、图标和表格组件，顶栏 / 抽屉 / 搜索 / 分页 / 计算器格与原站同一套。探索是本站加的各地四人采集。
 
 - 默认载入 `data/userData.json` 和 `data/data.min.json`
 - **从游戏导入**：游戏内点左上角昵称 → 设置 → 白菜菊花，复制校验码，粘贴后点「从游戏导入」

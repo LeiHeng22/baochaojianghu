@@ -1,194 +1,415 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="ch">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <title>爆炒江湖图鉴</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>个人爱好[白菜菊花]</title>
+  <link rel="icon" href="https://h5.baochaojianghu.com/favicon.png?v=1">
+  <link rel="stylesheet" href="https://h5.baochaojianghu.com/css/index.css?v=44">
+  <link rel="stylesheet" href="https://h5.baochaojianghu.com/css/image.css?v=77">
+  <link rel="stylesheet" href="https://h5.baochaojianghu.com/ele/index.css">
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-  <header class="header">
-    <button class="icon-btn" id="btnNav" type="button" aria-label="菜单">☰</button>
-    <div class="header-title" id="headerTitle">首页</div>
-    <button class="icon-btn right" id="btnSetting" type="button" aria-label="设置">⚙</button>
-  </header>
+<div id="main" v-cloak>
+  <div v-if="loading" class="loading">
+    <div>爆炒江湖图鉴</div>
+  </div>
 
-  <div class="mask" id="navMask"></div>
+  <aside class="aside">
+    <el-drawer class="left-bar" :visible.sync="leftBar" direction="ltr" size="240px" :with-header="false">
+      <div class="left-bar-header">
+        <div class="header">
+          <img class="img-header" src="https://h5.baochaojianghu.com/images/saltFish.png" alt="咸公主">
+          <div class="title" @click="checkNav(0)">白菜菊花图鉴</div>
+          <div class="sub-title">by 小鱼、L</div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="nav" v-for="item in nav" :key="item.id" :class="item.id === navId ? 'active' : ''" @click="checkNav(item.id)">
+          <i :class="item.icon"></i>
+          {{ item.name }}
+        </div>
+      </div>
+    </el-drawer>
 
-  <aside class="drawer" id="aside">
-    <div class="drawer-head">
-      <div class="drawer-title">爆炒江湖图鉴</div>
-      <div class="drawer-sub">布局与操作对齐白菜菊花</div>
+    <el-drawer class="right-bar" :visible.sync="rightBar" size="300px" :with-header="false">
+      <div class="right-bar-body" :class="navId == 2 ? 'scroll-chef' : ''">
+        <div v-show="navId === 2">
+          <div class="box">
+            <div class="box-title">展示列</div>
+            <div class="hr"></div>
+            <span class="checkbox" @click="selectAllCol('chefCol')">全选</span>
+            <span v-for="(val, key) in chefColName" :key="key" class="checkbox" :class="chefCol[key] ? 'active' : ''" @click="chefCol[key] = !chefCol[key]">{{ val }}</span>
+          </div>
+          <div class="box">
+            <div class="box-title">筛选</div>
+            <div class="hr"></div>
+            <div class="checkbox-contain">
+              <span class="checkbox" v-for="(val, key) in chefFilter.rarity" :key="key" :class="val ? 'active' : ''" @click="chefFilter.rarity[key] = !val">{{ key }}星</span>
+            </div>
+            <div class="checkbox-contain">
+              <span class="checkbox" :class="chefFilter.got ? 'active' : ''" @click="chefFilter.got = !chefFilter.got">已有</span>
+            </div>
+          </div>
+        </div>
+        <div v-show="navId === 3">
+          <div class="box">
+            <div class="box-title">展示列</div>
+            <div class="hr"></div>
+            <span class="checkbox" @click="selectAllCol('equipCol')">全选</span>
+            <span v-for="(val, key) in equipColName" :key="key" class="checkbox" :class="equipCol[key] ? 'active' : ''" @click="equipCol[key] = !equipCol[key]">{{ val }}</span>
+          </div>
+          <div class="box">
+            <div class="box-title">筛选</div>
+            <div class="hr"></div>
+            <div class="checkbox-contain">
+              <span class="checkbox" v-for="n in 3" :key="n" :class="equipFilter.rarity[n] ? 'active' : ''" @click="equipFilter.rarity[n] = !equipFilter.rarity[n]">{{ n }}星</span>
+            </div>
+          </div>
+        </div>
+        <div v-show="navId === 12">
+          <div class="box">
+            <div class="box-title">展示列</div>
+            <div class="hr"></div>
+            <span class="checkbox" @click="selectAllCol('amberCol')">全选</span>
+            <span v-for="(val, key) in amberColName" :key="key" class="checkbox" :class="amberCol[key] ? 'active' : ''" @click="amberCol[key] = !amberCol[key]">{{ val }}</span>
+          </div>
+          <div class="box">
+            <div class="box-title">筛选</div>
+            <div class="hr"></div>
+            <div class="checkbox-contain">
+              <span class="checkbox" v-for="n in 3" :key="n" :class="amberFilter.rarity[n] ? 'active' : ''" @click="amberFilter.rarity[n] = !amberFilter.rarity[n]">{{ n }}星</span>
+            </div>
+            <div class="checkbox-contain">
+              <span class="checkbox" v-for="(val, key) in amberFilter.origin" :key="key" :class="val.flag ? 'active' : ''" @click="val.flag = !val.flag">{{ val.name }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </el-drawer>
+
+    <div v-if="[2, 3, 12].indexOf(navId) > -1" class="suspend icon-btn" @click="rightBar = true">
+      <i class="el-icon-search"></i>
     </div>
-    <nav class="nav-list">
-      <button class="nav-item active" data-mode="home" type="button"><i>⌂</i>首页</button>
-      <button class="nav-item" data-mode="chefs" type="button"><i>厨</i>厨师</button>
-      <button class="nav-item" data-mode="equips" type="button"><i>具</i>厨具</button>
-      <button class="nav-item" data-mode="ambers" type="button"><i>玉</i>遗玉</button>
-      <button class="nav-item" data-mode="open" type="button"><i>开</i>开业</button>
-      <button class="nav-item" data-mode="gather" type="button"><i>探</i>探索</button>
-      <button class="nav-item" data-mode="user" type="button"><i>我</i>个人</button>
-    </nav>
+
+    <el-dialog top="160px" :show-close="false" :visible.sync="settingVisible" width="270px">
+      <div class="input-box" v-show="navId==2">
+        <span class="label">厨师分页</span>
+        <el-select size="mini" v-model="chefsPageSize">
+          <el-option v-for="item in page_list" :key="item.id" :label="item.name" :value="item.id"></el-option>
+        </el-select>
+      </div>
+      <div class="input-box" v-show="navId==3">
+        <span class="label">厨具分页</span>
+        <el-select size="mini" v-model="equipsPageSize">
+          <el-option v-for="item in page_list" :key="item.id" :label="item.name" :value="item.id"></el-option>
+        </el-select>
+      </div>
+      <div class="input-box" v-show="navId==12">
+        <span class="label">遗玉分页</span>
+        <el-select size="mini" v-model="ambersPageSize">
+          <el-option v-for="item in page_list" :key="item.id" :label="item.name" :value="item.id"></el-option>
+        </el-select>
+      </div>
+      <div class="input-box" v-if="[2,3,12].indexOf(navId) < 0">
+        <span class="label">每页行数</span>
+        <el-select size="mini" v-model="chefsPageSize">
+          <el-option v-for="item in page_list" :key="item.id" :label="item.name" :value="item.id"></el-option>
+        </el-select>
+      </div>
+      <div style="color:#909399;font-size:13px;margin-top:8px;">除【遗玉】页不建议选所有，会卡</div>
+    </el-dialog>
   </aside>
 
-  <div class="pop" id="settingPop" hidden>
-    <div class="pop-title">设置</div>
-    <label class="row">每页行数
-      <select class="select" id="pageSize">
-        <option value="5">5条/页</option>
-        <option value="10">10条/页</option>
-        <option value="20" selected>20条/页</option>
-        <option value="50">50条/页</option>
-        <option value="100">100条/页</option>
-        <option value="1000">所有</option>
-      </select>
-    </label>
-    <p class="tip">除遗玉外不建议选「所有」，表格会比较卡。多个关键字用空格分开，满足其中一个就会出现。</p>
-  </div>
+  <div class="extra-header"></div>
+  <section class="header">
+    <i class="icon-btn el-icon-s-operation" @click="leftBar = !leftBar"></i>
+    <span class="right">
+      <i v-if="[2, 3, 12].indexOf(navId) > -1" class="icon-btn el-icon-search" style="margin-left: 6px;" @click="rightBar = true"></i>
+      <i class="icon-btn el-icon-s-tools" @click="settingVisible = true"></i>
+    </span>
+  </section>
 
-  <main class="main">
-    <section class="pane" id="homePane">
-      <div class="home">
-        <h1>爆炒江湖图鉴</h1>
-        <p>请点左上角 ☰ 选择功能。操作方式和 <a href="https://h5.baochaojianghu.com/" target="_blank" rel="noreferrer">白菜菊花</a> 对齐：表格先筛选再翻页，开业三人点格换人。</p>
-        <h2>怎么导入角色</h2>
-        <p>游戏内点左上角昵称 → 设置 → 白菜菊花，复制校验码，到【个人】页导入。只导入满级满阶厨师。</p>
-        <h2>本站多出来的</h2>
-        <p>【探索】按菜园 / 玉片 / 调料各地派 4 人，同一厨师不能同时去两个地点。</p>
-        <p class="status" id="dataStatus">尚未载入数据</p>
-      </div>
-    </section>
-
-    <section class="pane" id="chefsPane" hidden>
-      <div class="search-box">
-        <button class="sb-btn" id="chefColsBtn" type="button">展示列</button>
-        <button class="sb-btn" id="chefFilterBtn" type="button">筛选</button>
-        <label class="switch"><input id="chefGotOnly" type="checkbox" checked> 已有</label>
-        <input class="sb-input" id="chefKeyword" type="search" placeholder="搜索">
-      </div>
-      <div class="pop under" id="chefColsPop" hidden></div>
-      <div class="pop under" id="chefFilterPop" hidden></div>
-      <div class="table-body">
-        <table class="grid">
-          <thead id="chefHead"></thead>
-          <tbody id="chefTable"></tbody>
-        </table>
-      </div>
-      <div class="pager" id="chefPager"></div>
-    </section>
-
-    <section class="pane" id="equipsPane" hidden>
-      <div class="search-box">
-        <button class="sb-btn" id="equipFilterBtn" type="button">筛选</button>
-        <input class="sb-input" id="equipKeyword" type="search" placeholder="搜索">
-      </div>
-      <div class="pop under" id="equipFilterPop" hidden></div>
-      <div class="table-body">
-        <table class="grid">
-          <thead>
-            <tr><th class="fix">图</th><th>厨具</th><th>技能</th><th>来源</th><th>装备于</th></tr>
-          </thead>
-          <tbody id="equipTable"></tbody>
-        </table>
-      </div>
-      <div class="pager" id="equipPager"></div>
-    </section>
-
-    <section class="pane" id="ambersPane" hidden>
-      <div class="search-box">
-        <button class="sb-btn" id="amberFilterBtn" type="button">筛选</button>
-        <input class="sb-input" id="amberKeyword" type="search" placeholder="搜索">
-      </div>
-      <div class="pop under" id="amberFilterPop" hidden></div>
-      <div class="table-body">
-        <table class="grid">
-          <thead>
-            <tr><th class="fix">图</th><th>遗玉</th><th>颜色</th><th>技能</th><th>成长</th><th>来源</th><th>镶嵌于</th></tr>
-          </thead>
-          <tbody id="amberTable"></tbody>
-        </table>
-      </div>
-      <div class="pager" id="amberPager"></div>
-    </section>
-
-    <section class="pane cal-pane" id="openPane" hidden>
-      <div class="ctl-box">
-        <select class="select" id="openPreset"></select>
-        <button class="btn" id="btnNewOpen" type="button">保存为新方案</button>
-        <button class="btn" id="btnSaveOpen" type="button">保存</button>
-        <button class="btn btn-delete" id="btnClearOpen" type="button">清空</button>
-      </div>
-      <p class="cal-tips">上场 3 人。点厨师格换人，点厨具 / 遗玉格更换。光环对场上所有人生效，下位光环只打右边那位。</p>
-      <div class="cal-contain" id="openSlots"></div>
-      <div class="total-result" id="openPreview"></div>
-    </section>
-
-    <section class="pane cal-pane" id="gatherPane" hidden>
-      <div class="ctl-box">
-        <select class="select" id="gatherGroup">
-          <option value="veg">菜园区</option>
-          <option value="jade">玉片区</option>
-          <option value="cond">调料区</option>
-        </select>
-        <select class="select" id="gatherArea"></select>
-        <button class="btn btn-primary" id="btnRecommend" type="button">按效率推荐</button>
-        <button class="btn btn-delete" id="btnClearGather" type="button">清空此地</button>
-      </div>
-      <p class="cal-tips">每个地点 4 人，同一厨师不能同时去两个地点。</p>
-      <div class="cal-contain four" id="gatherSlots"></div>
-      <div class="total-result" id="gatherPreview"></div>
-    </section>
-
-    <section class="pane" id="userPane" hidden>
-      <div class="card">
-        <h2>官方数据导入（厨子满级满阶才会导入）</h2>
-        <div class="toolbar">
-          <input class="input" id="tokenInput" type="text" maxlength="12" placeholder="校验码" autocomplete="off">
-          <button class="btn btn-primary" id="btnOfficial" type="button">导入数据</button>
+  <section class="body">
+    <div v-if="navId === 0" class="info-box" :style="'height: '+ boxHeight + 'px; padding: 0px;'">
+      <div style="padding: 15px 10px 0 10px">
+        <div class="title-box">
+          <div class="img-title"><img src="https://h5.baochaojianghu.com/images/saltFish.png" alt="咸公主"></div>
+          <div class="ng-contain">
+            <h2 class="ng-title">个人爱好[白菜菊花图鉴]</h2>
+            <div class="ng-author">by 小鱼、L</div>
+            <div class="ng-content">欢迎使用，请点击左上角 <i class="el-icon-s-operation"></i> 键选择相应功能使用。</div>
+          </div>
         </div>
-        <p class="tip">游戏内点左上角昵称 → 设置 → 白菜菊花。会与本地已有合并，遗玉厨具仍用本地。</p>
-      </div>
-      <div class="card">
-        <h2>个人装饰/修炼数据配置</h2>
-        <div class="toolbar">
-          <label class="row">装饰加成 % <input class="input short" id="decoBuff" type="number" min="0" step="1"></label>
-          <button class="btn" id="btnSaveDeco" type="button">保存</button>
+        <div class="title">最近更新</div>
+        <div class="hr"></div>
+        <div class="box-body">
+          <div class="p">本站在白菜菊花界面上增加了【探索】：菜园 / 玉片 / 调料各地 4 人采集。</div>
+          <div class="p">{{ dataStatus }}</div>
+        </div>
+        <div class="title">常见问题</div>
+        <div class="hr"></div>
+        <div class="box-body">
+          <div class="p">
+            <p>Q: 我要怎么把我有的菜谱、厨师导入到图鉴里呢？<br></p>
+            <p>A: 游戏内点击左上角昵称，然后点击<span class="code">设置</span>-<span class="code">白菜菊花</span>获取校验码，然后将校验码填入本图鉴的【个人】页，使用<span class="code">官方数据导入</span>功能导入即可</p>
+          </div>
         </div>
       </div>
-      <div class="card">
-        <h2>个人数据云端暂存 / 备份</h2>
-        <div class="toolbar">
-          <button class="btn" id="btnLoadLocal" type="button">载入本地数据</button>
-          <button class="btn" id="btnUpdateCatalog" type="button">更新图鉴</button>
-          <button class="btn" id="btnImport" type="button">导入个人数据文件</button>
-          <input class="hidden-file" id="fileInput" type="file" accept=".txt,.json,application/json,text/plain">
-        </div>
-        <div class="toolbar">
-          <input class="input" id="cloudIdInput" type="text" maxlength="10" placeholder="云端数字ID" inputmode="numeric">
-          <button class="btn" id="btnCloud" type="button">获取云端数据</button>
-        </div>
-        <p class="tip">云端写入本地文件需要本机 node scripts/serve.js。Pages 上保存在当前浏览器。</p>
-      </div>
-    </section>
-  </main>
-
-  <div class="modal" id="pickerModal">
-    <div class="dialog">
-      <div class="dialog-head">
-        <h3 id="pickerTitle">选择</h3>
-        <button class="btn" id="btnPickerClose" type="button">关闭</button>
-      </div>
-      <div class="search-box">
-        <input class="sb-input" id="pickerKeyword" type="search" placeholder="搜索">
-        <select class="select" id="pickerFilter"></select>
-        <button class="btn" id="btnPickerEmpty" type="button">清空</button>
-      </div>
-      <div class="picker-list" id="pickerList"></div>
     </div>
-  </div>
 
-  <div class="toast" id="toast"></div>
-  <script src="js/engine.js"></script>
-  <script src="js/app.js"></script>
+    <div v-show="navId === 2">
+      <div class="search-box">
+        <el-input size="small" prefix-icon="el-icon-search" placeholder="名字 技能 修炼技能 来源 心法盘 厨具" v-model="chefFilter.chefKeyword"></el-input>
+      </div>
+      <el-table :key="'chef-'+tableKey" :data="chefsPage" style="width: 100%" :height="tableHeight" v-if="tableShow">
+        <el-table-column fixed label="" width="60" v-if="chefCol.img">
+          <template slot-scope="scope"><div class="icon-chef" :class="'chef_' + scope.row.chefId"></div></template>
+        </el-table-column>
+        <el-table-column fixed sortable prop="name" label="名字" width="67"></el-table-column>
+        <el-table-column sortable prop="rarity_show" label="星" min-width="80" v-if="chefCol.rarity"></el-table-column>
+        <el-table-column sortable prop="Stirfry_show" label="炒" min-width="48" v-if="chefCol.skills"></el-table-column>
+        <el-table-column sortable prop="Boil_show" label="煮" min-width="48" v-if="chefCol.skills"></el-table-column>
+        <el-table-column sortable prop="Knife_show" label="切" min-width="48" v-if="chefCol.skills"></el-table-column>
+        <el-table-column sortable prop="Fry_show" label="炸" min-width="48" v-if="chefCol.skills"></el-table-column>
+        <el-table-column sortable prop="Bake_show" label="烤" min-width="48" v-if="chefCol.skills"></el-table-column>
+        <el-table-column sortable prop="Steam_show" label="蒸" min-width="48" v-if="chefCol.skills"></el-table-column>
+        <el-table-column sortable prop="skill" label="技能" min-width="130" v-if="chefCol.skill"></el-table-column>
+        <el-table-column sortable prop="meat" label="肉" min-width="48" v-if="chefCol.gather"></el-table-column>
+        <el-table-column sortable prop="creation" label="面" min-width="48" v-if="chefCol.gather"></el-table-column>
+        <el-table-column sortable prop="veg" label="菜" min-width="48" v-if="chefCol.gather"></el-table-column>
+        <el-table-column sortable prop="fish" label="鱼" min-width="48" v-if="chefCol.gather"></el-table-column>
+        <el-table-column sortable prop="origin" label="来源" min-width="100" v-if="chefCol.origin"></el-table-column>
+        <el-table-column sortable prop="ultimateSkillShow" label="修炼技能" min-width="130" v-if="chefCol.ultimateSkill"></el-table-column>
+        <el-table-column prop="equipName" label="厨具" min-width="90" v-if="chefCol.chefEquip"></el-table-column>
+        <el-table-column prop="amberText" label="遗玉" min-width="120" v-if="chefCol.diskDesc"></el-table-column>
+        <el-table-column sortable prop="got" label="已有" min-width="68" v-if="chefCol.got">
+          <template slot-scope="scope">
+            <el-checkbox v-model="scope.row.checked" @change="changeGot($event, scope.row.chefId)"></el-checkbox>
+          </template>
+        </el-table-column>
+        <el-table-column label="" min-width="1"></el-table-column>
+      </el-table>
+      <div class="pagination">
+        <el-pagination background small :page-size="chefsPageSize" :current-page.sync="chefsCurPage" :pager-count="5" layout="total, prev, pager, next" :total="chefsView.length"></el-pagination>
+      </div>
+    </div>
+
+    <div v-show="navId === 3">
+      <div class="search-box">
+        <el-input size="small" prefix-icon="el-icon-search" placeholder="名字 技能 来源" v-model="equipFilter.equipKeyword"></el-input>
+      </div>
+      <el-table :key="'equip-'+tableKey" :data="equipsPage" style="width: 100%" :height="tableHeight" v-if="tableShow">
+        <el-table-column fixed label="" width="45" v-if="equipCol.img">
+          <template slot-scope="scope"><div class="icon-equip" :class="'equip_' + scope.row.id"></div></template>
+        </el-table-column>
+        <el-table-column fixed sortable prop="name" label="名字" width="80"></el-table-column>
+        <el-table-column sortable prop="rarity_show" label="星" min-width="55" v-if="equipCol.rarity"></el-table-column>
+        <el-table-column sortable prop="skill" label="技能" min-width="155" v-if="equipCol.skill"></el-table-column>
+        <el-table-column sortable prop="origin" label="来源" min-width="100" v-if="equipCol.origin"></el-table-column>
+        <el-table-column prop="wornText" label="装备于" min-width="100"></el-table-column>
+        <el-table-column label="" min-width="1"></el-table-column>
+      </el-table>
+      <div class="pagination">
+        <el-pagination background small :page-size="equipsPageSize" :current-page.sync="equipsCurPage" :pager-count="5" layout="total, prev, pager, next" :total="equipsView.length"></el-pagination>
+      </div>
+    </div>
+
+    <div v-show="navId === 12">
+      <div class="search-box">
+        <el-input size="small" prefix-icon="el-icon-search" placeholder="名字 技能 来源" v-model="amberFilter.amberKeyword"></el-input>
+      </div>
+      <el-table :key="'amber-'+tableKey" :data="ambersPage" style="width: 100%" :height="tableHeight" v-if="tableShow">
+        <el-table-column fixed label="" width="45" v-if="amberCol.img">
+          <template slot-scope="scope"><div class="icon-amber" :class="'amber_' + scope.row.id"></div></template>
+        </el-table-column>
+        <el-table-column fixed sortable prop="name" label="名字" width="80"></el-table-column>
+        <el-table-column sortable prop="rarity_show" label="星" min-width="55" v-if="amberCol.rarity"></el-table-column>
+        <el-table-column sortable prop="color" label="颜色" min-width="55" v-if="amberCol.color"></el-table-column>
+        <el-table-column sortable prop="skill" label="技能" min-width="155" v-if="amberCol.skill"></el-table-column>
+        <el-table-column sortable prop="amplification" label="成长" min-width="55" v-if="amberCol.amplification"></el-table-column>
+        <el-table-column sortable prop="origin" label="来源" min-width="100" v-if="amberCol.origin"></el-table-column>
+        <el-table-column prop="wornText" label="镶嵌于" min-width="100"></el-table-column>
+        <el-table-column label="" min-width="1"></el-table-column>
+      </el-table>
+      <div class="pagination">
+        <el-pagination background small :page-size="ambersPageSize" :current-page.sync="ambersCurPage" :pager-count="5" layout="total, prev, pager, next" :total="ambersView.length"></el-pagination>
+      </div>
+    </div>
+
+    <div v-show="navId === 7">
+      <div class="cal-box">
+        <div class="cal" :style="'height: '+ (boxHeight - 50) + 'px;'">
+          <div class="ctl-box">
+            <el-select size="mini" v-model="activeOpenId" style="width:158px">
+              <el-option v-for="item in openPresets" :key="item.id" :label="item.name" :value="item.id"></el-option>
+            </el-select>
+            <span class="btn" @click="newOpen">保存为新方案</span>
+            <span class="btn" @click="saveOpen">保存</span>
+            <span class="btn load" @click="clearOpen">清空</span>
+            <span class="btn" @click="checkNav(8)">个人</span>
+          </div>
+          <div class="tips">上场 3 人。点厨师格换人，点厨具 / 遗玉格更换。光环对场上所有人生效。</div>
+          <div class="cal-contain">
+            <div class="chef-box" v-for="(slot, index) in currentOpen.slots" :key="'open-'+index">
+              <div class="chef" :class="calFocus==='Chef_'+index ? 'focus' : ''" @click="openPicker('open', index)">
+                <div v-if="chefById(slot)" class="show">
+                  <div class="show-chef">
+                    <div class="name-img">
+                      <span class="name">{{ chefById(slot).name }}</span>
+                      <div class="img icon-chef" :class="'chef_' + chefById(slot).id">
+                        <span v-show="chefById(slot).isPartialUlt || chefById(slot).isSelfUlt" class="ultimate">满</span>
+                      </div>
+                    </div>
+                    <div class="skill-box">
+                      <div v-for="(val, key) in chefById(slot).cook" v-show="val" :key="key">
+                        <span class="label">{{ skill_map[key] }}</span>
+                        <span class="val">{{ val }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="show-condiment">{{ chefById(slot).skillDesc }}</div>
+                </div>
+                <div class="chef-empty" v-else>
+                  <i class="el-icon-plus"></i>
+                  <span>选择厨师&调料</span>
+                </div>
+              </div>
+              <div class="equip" :class="calFocus==='Equip_'+index ? 'focus' : ''" @click="openPicker('equip', index)">
+                <div class="show" v-if="chefById(slot) && chefById(slot).equipName"><span class="name">{{ chefById(slot).equipName }}</span></div>
+                <div class="equip-empty" v-else><i class="el-icon-plus"></i></div>
+              </div>
+              <div class="rep-box">
+                <div class="rep" v-for="(amber, ai) in (chefById(slot) && chefById(slot).amberSlots || [{color:'红'},{color:'绿'},{color:'蓝'}])" :key="ai" @click="openPicker('amber', index, ai)">
+                  <div class="show" v-if="amber.id">
+                    <div class="img icon-amber" :class="'amber_' + amber.id"></div>
+                    <div class="rep-detail">{{ amber.name }}</div>
+                  </div>
+                  <div class="rep-empty" v-else><i class="el-icon-plus"></i></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="tool" v-html="openPreviewHtml"></div>
+        </div>
+      </div>
+    </div>
+
+    <div v-show="navId === 5">
+      <div class="cal-box">
+        <div class="cal" :style="'height: '+ (boxHeight - 50) + 'px;'">
+          <div class="ctl-box">
+            <el-select size="mini" v-model="gatherGroup" style="width:100px" @change="onGatherGroup">
+              <el-option label="菜园区" value="veg"></el-option>
+              <el-option label="玉片区" value="jade"></el-option>
+              <el-option label="调料区" value="cond"></el-option>
+            </el-select>
+            <el-select size="mini" v-model="gatherArea" style="width:140px">
+              <el-option v-for="a in gatherAreas" :key="a.name" :label="a.name + (a.label ? '（'+a.label+'）' : '')" :value="a.name"></el-option>
+            </el-select>
+            <span class="btn" @click="recommendGather">按效率推荐</span>
+            <span class="btn load" @click="clearGather">清空此地</span>
+          </div>
+          <div class="tips">每个地点 4 人，同一厨师不能同时去两个地点。</div>
+          <div class="cal-contain four">
+            <div class="chef-box" v-for="(slot, index) in currentGather" :key="'g-'+index">
+              <div class="chef" @click="openPicker('gather', index)">
+                <div v-if="chefById(slot)" class="show">
+                  <div class="show-chef">
+                    <div class="name-img">
+                      <span class="name">{{ chefById(slot).name }}</span>
+                      <div class="img icon-chef" :class="'chef_' + chefById(slot).id">
+                        <span v-show="chefById(slot).isPartialUlt || chefById(slot).isSelfUlt" class="ultimate">满</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="show-condiment">肉{{ chefById(slot).gather.meat }} 鱼{{ chefById(slot).gather.fish }} 菜{{ chefById(slot).gather.veg }} 面{{ chefById(slot).gather.creation }}</div>
+                </div>
+                <div class="chef-empty" v-else>
+                  <i class="el-icon-plus"></i>
+                  <span>选择厨师</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="tool" v-html="gatherPreviewHtml"></div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="navId === 8">
+      <div class="ultimate-box" :style="'height: '+ boxHeight + 'px;'">
+        <div class="title">官方数据导入（厨子满级满阶才会导入）</div>
+        <div class="hr"></div>
+        <div class="box-body">
+          <div class="btn-box" style="margin-top: 10px;">
+            <el-input placeholder="在游戏设置页面获取校验码" v-model="userDataCode" size="mini" style="width: 180px;"></el-input>
+            <span class="btn" style="line-height: 25px;" @click="syncUserData">导入数据</span>
+          </div>
+        </div>
+        <div class="title">个人装饰/修炼数据配置</div>
+        <div class="hr"></div>
+        <div class="box-body">
+          <div class="contain">
+            <div class="contain-title">家具</div>
+            <div class="prepend-input append-input">
+              <div class="input-box">
+                <div class="prepend">装饰加成</div>
+                <input type="number" v-model.lazy="decoBuff">
+                <div class="append">%</div>
+              </div>
+            </div>
+          </div>
+          <div class="btn-box" style="padding-left: 3px;">
+            <span class="btn" @click="saveDeco">保存装饰加成</span>
+          </div>
+        </div>
+        <div class="title">个人数据云端暂存</div>
+        <div class="hr"></div>
+        <div class="box-body">
+          <div class="btn-box" style="margin-top: 10px;">
+            <el-input placeholder="云端数字ID" v-model="cloudId" size="mini" style="width: 140px;"></el-input>
+            <span class="btn" @click="downloadCloud">获取云端数据</span>
+            <span class="btn" @click="loadLocal">载入本地数据</span>
+            <span class="btn" @click="updateCatalog">更新图鉴</span>
+            <span class="btn" @click="$refs.file.click()">导入个人数据文件</span>
+            <input ref="file" class="hidden" type="file" accept=".txt,.json" @change="importFile">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="[1,4,6,9,10,11].indexOf(navId) > -1" class="info-box" :style="'height: '+ boxHeight + 'px;'">
+      <div style="padding: 15px 10px 0 10px">
+        <div class="title">{{ navTitle }}</div>
+        <div class="hr"></div>
+        <div class="box-body">
+          <div class="p">此页与白菜菊花一致的完整功能仍在对照中。厨师 / 厨具 / 遗玉 / 计算器 / 探索 / 个人已经按原站元素接好。</div>
+          <div class="p">探索在左侧【探索】；开业在【计算器】。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <el-dialog :title="pickerTitle" :visible.sync="pickerShow" width="90%">
+    <el-input size="small" prefix-icon="el-icon-search" v-model="pickerKeyword" placeholder="搜索"></el-input>
+    <div class="picker-grid">
+      <div class="checkbox" v-for="item in pickerList" :key="item.id" @click="assignPicked(item.id)">
+        {{ item.name }}
+        <div style="font-size:12px;color:#909399;">{{ item.sub }}</div>
+      </div>
+    </div>
+    <span slot="footer">
+      <el-button @click="assignPicked(null)">清空</el-button>
+      <el-button @click="pickerShow=false">关闭</el-button>
+    </span>
+  </el-dialog>
+</div>
+
+<script src="https://h5.baochaojianghu.com/js/vue.min.js"></script>
+<script src="https://h5.baochaojianghu.com/ele/index.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>

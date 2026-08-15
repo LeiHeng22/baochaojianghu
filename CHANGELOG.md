@@ -2,6 +2,12 @@
 
 ## 2026-08-15
 
+推送到 GitHub 并开启 Pages，可在其他设备打开。
+
+线上地址：https://leiheng22.github.io/baochaojianghu/
+
+## 2026-08-15
+
 网页可像白菜菊花一样同步数据：游戏校验码导入角色、云端 ID 拉取、一键更新图鉴；新增角色一览。
 
 - 游戏内「设置 → 白菜菊花」校验码调用 `yx518.com/api/archive.do`

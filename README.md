@@ -17,6 +17,8 @@ node scripts/serve.js
 
 浏览器打开 http://127.0.0.1:5173/web/
 
+线上（GitHub Pages）：https://leiheng22.github.io/baochaojianghu/
+
 - 默认载入 `data/userData.json` 和 `data/data.min.json`
 - **从游戏导入**：游戏内点左上角昵称 → 设置 → 白菜菊花，复制校验码，粘贴后点「从游戏导入」
 - 也可点「导入 userData」，选择白菜菊花下载的 `userData.txt`；或填白菜菊花云端 ID

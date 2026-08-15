@@ -1,0 +1,369 @@
+:root {
+  --ink: #1b140f;
+  --ink-soft: #4a3a2c;
+  --paper: #f4e6cc;
+  --paper-deep: #e8d3ad;
+  --lacquer: #8f1d1d;
+  --lacquer-deep: #5c1010;
+  --tea: #b8883b;
+  --moss: #3f5a3a;
+  --line: rgba(27, 20, 15, 0.16);
+  --shadow: 0 18px 40px rgba(27, 20, 15, 0.16);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  color: var(--ink);
+  background: #d9c4a0;
+  font-family: "Noto Serif SC", "Source Han Serif SC", "STSong", "SimSun", serif;
+}
+
+body {
+  background-image:
+    radial-gradient(circle at 12% 8%, rgba(255, 248, 230, 0.55), transparent 28%),
+    radial-gradient(circle at 88% 0%, rgba(143, 29, 29, 0.12), transparent 32%),
+    linear-gradient(180deg, #efe0c4 0%, #d7c09a 100%);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.18;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E");
+}
+
+.app {
+  position: relative;
+  z-index: 1;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 28px 22px 48px;
+}
+
+.masthead {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 20px;
+  align-items: end;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  font-family: "Ma Shan Zheng", "STKaiti", "KaiTi", serif;
+  font-size: clamp(42px, 6vw, 72px);
+  line-height: 0.92;
+  letter-spacing: 0.04em;
+}
+
+.lead {
+  margin: 10px 0 0;
+  max-width: 36em;
+  color: var(--ink-soft);
+  font-size: 15px;
+}
+
+.data-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.btn,
+.select,
+.input {
+  appearance: none;
+  border: 1px solid rgba(27, 20, 15, 0.28);
+  background: rgba(255, 248, 234, 0.72);
+  color: var(--ink);
+  font: inherit;
+  padding: 8px 14px;
+  border-radius: 2px;
+}
+
+.btn {
+  cursor: pointer;
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  background: #fff6e4;
+}
+
+.btn-primary {
+  background: var(--lacquer);
+  border-color: var(--lacquer-deep);
+  color: #f8ecd4;
+}
+
+.btn-primary:hover {
+  background: #a32525;
+}
+
+.hidden-file {
+  display: none;
+}
+
+.stage {
+  display: grid;
+  grid-template-columns: 220px 1fr 320px;
+  gap: 22px;
+  margin-top: 22px;
+}
+
+.rail,
+.board,
+.preview {
+  background: rgba(244, 230, 204, 0.72);
+  border: 1px solid rgba(27, 20, 15, 0.12);
+  box-shadow: var(--shadow);
+}
+
+.rail {
+  padding: 16px 14px;
+}
+
+.mode-btn {
+  width: 100%;
+  text-align: left;
+  margin-bottom: 8px;
+  padding: 12px 12px;
+}
+
+.mode-btn.active {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.hint {
+  margin: 16px 4px 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.board {
+  padding: 20px 20px 24px;
+  min-height: 520px;
+}
+
+.board-title {
+  font-family: "Ma Shan Zheng", "STKaiti", "KaiTi", serif;
+  font-size: 34px;
+  margin: 0 0 6px;
+}
+
+.board-sub {
+  margin: 0 0 18px;
+  color: var(--ink-soft);
+}
+
+.slots {
+  display: grid;
+  gap: 12px;
+}
+
+.slots.open {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.slots.gather {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.slot {
+  min-height: 210px;
+  padding: 14px;
+  border: 1px dashed rgba(27, 20, 15, 0.28);
+  background:
+    linear-gradient(180deg, rgba(255, 248, 234, 0.55), rgba(232, 211, 173, 0.35));
+  cursor: pointer;
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+
+.slot:hover,
+.slot.active {
+  border-style: solid;
+  border-color: var(--lacquer);
+  transform: translateY(-2px);
+}
+
+.slot.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-soft);
+}
+
+.slot-name {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.slot-meta,
+.slot-skill {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+
+.rarity {
+  color: var(--tea);
+  letter-spacing: 0.08em;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.preview {
+  padding: 18px 16px 22px;
+}
+
+.preview h2 {
+  font-family: "Ma Shan Zheng", "STKaiti", "KaiTi", serif;
+  font-size: 30px;
+  margin: 0 0 12px;
+}
+
+.stat {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.stat b {
+  font-weight: 700;
+}
+
+.ok {
+  color: var(--moss);
+}
+
+.bad {
+  color: var(--lacquer);
+}
+
+.material-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.material {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+.material.off {
+  opacity: 0.38;
+  text-decoration: line-through;
+}
+
+.aura-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.aura-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(27, 20, 15, 0.42);
+}
+
+.modal.show {
+  display: flex;
+}
+
+.dialog {
+  width: min(860px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  background: #f7ead0;
+  border: 1px solid rgba(27, 20, 15, 0.2);
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+
+.dialog h3 {
+  margin: 0 0 12px;
+  font-size: 22px;
+}
+
+.picker-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.picker-item {
+  text-align: left;
+  padding: 10px;
+}
+
+.picker-item small {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-soft);
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: var(--paper);
+  padding: 10px 16px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+
+.toast.show {
+  opacity: 1;
+}
+
+@media (max-width: 980px) {
+  .stage,
+  .masthead {
+    grid-template-columns: 1fr;
+  }
+
+  .slots.open,
+  .slots.gather {
+    grid-template-columns: 1fr 1fr;
+  }
+}

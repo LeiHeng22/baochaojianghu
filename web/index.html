@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>爆炒江湖 · 开业与采集</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div class="app">
+    <header class="masthead">
+      <div>
+        <div class="brand">爆炒江湖</div>
+        <p class="lead">导入白菜菊花个人数据后，在案台上摆开业三人队和各地采集四人队，右侧即时预览光环与收获。</p>
+      </div>
+      <div class="data-bar">
+        <span id="dataStatus">尚未载入数据</span>
+        <button class="btn" id="btnLoadLocal" type="button">载入本地数据</button>
+        <button class="btn btn-primary" id="btnImport" type="button">导入 userData</button>
+        <input class="hidden-file" id="fileInput" type="file" accept=".txt,.json,application/json,text/plain">
+      </div>
+    </header>
+
+    <div class="stage">
+      <aside class="rail">
+        <button class="btn mode-btn active" data-mode="open" type="button">开业三人</button>
+        <button class="btn mode-btn" data-mode="gather" type="button">探索采集</button>
+        <p class="hint" id="railHint">开业上场三名厨师。光环厨会对场上所有人生效，下位光环只打右边那位。</p>
+      </aside>
+
+      <main class="board">
+        <div id="openPane">
+          <h1 class="board-title">开业案台</h1>
+          <p class="board-sub">从左到右为上场顺序。点空位选人，再看右侧光环汇总。</p>
+          <div class="toolbar">
+            <select class="select" id="openPreset"></select>
+            <button class="btn" id="btnNewOpen" type="button">新建方案</button>
+            <button class="btn" id="btnSaveOpen" type="button">保存</button>
+            <button class="btn" id="btnClearOpen" type="button">清空</button>
+          </div>
+          <div class="slots open" id="openSlots"></div>
+        </div>
+
+        <div id="gatherPane" hidden>
+          <h1 class="board-title">采集派遣</h1>
+          <p class="board-sub">每个地点四人，同一厨师不能同时出现在两个地点。</p>
+          <div class="toolbar">
+            <select class="select" id="gatherGroup">
+              <option value="veg">菜园区</option>
+              <option value="jade">玉片区</option>
+              <option value="cond">调料区</option>
+            </select>
+            <select class="select" id="gatherArea"></select>
+            <button class="btn" id="btnRecommend" type="button">按效率推荐</button>
+            <button class="btn" id="btnClearGather" type="button">清空此地</button>
+          </div>
+          <div class="slots gather" id="gatherSlots"></div>
+        </div>
+      </main>
+
+      <aside class="preview" id="preview"></aside>
+    </div>
+  </div>
+
+  <div class="modal" id="pickerModal">
+    <div class="dialog">
+      <h3 id="pickerTitle">选择厨师</h3>
+      <div class="toolbar">
+        <input class="input" id="pickerKeyword" type="search" placeholder="搜名字、技能、光环">
+        <select class="select" id="pickerFilter">
+          <option value="all">已有全部</option>
+          <option value="aura">光环厨</option>
+          <option value="open">开业向</option>
+          <option value="gather">采集向</option>
+        </select>
+        <button class="btn" id="btnPickerEmpty" type="button">留空</button>
+        <button class="btn" id="btnPickerClose" type="button">关闭</button>
+      </div>
+      <div class="picker-list" id="pickerList"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="js/engine.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

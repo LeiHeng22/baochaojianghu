@@ -9,6 +9,20 @@
 
 游戏里更新厨师/遗玉后：把新的 `userData.txt` 覆盖到 `data/userData.json`，再跑一次脚本。
 
+## 网页：开业 / 采集配置预览
+
+```text
+node scripts/serve.js
+```
+
+浏览器打开 http://127.0.0.1:5173/web/
+
+- 默认载入 `data/userData.json` 和 `data/data.min.json`
+- 也可点「导入 userData」，选择白菜菊花下载的 `userData.txt`
+- 开业案台：三人队，预览光环、开业时间、金币、稀客
+- 采集派遣：菜园 / 玉片 / 调料各地四人，预览点数和收获；同一厨师不能同时去两个地点
+- 方案保存在浏览器本地
+
 ## 生成报告
 
 ```text

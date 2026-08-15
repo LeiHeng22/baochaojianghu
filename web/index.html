@@ -545,37 +545,45 @@
     </div>
 
     <div v-show="navId === 5">
-      <div class="cal-box">
-        <div class="cal gather-all" :style="'height: '+ (boxHeight - 50) + 'px;'">
-          <div class="ctl-box">
+      <div class="board" :style="'height: '+ boxHeight + 'px;'">
+        <div class="board-top">
+          <div class="board-actions">
             <span class="btn" @click="recommendAllGather">全图最优</span>
+            <span class="btn" @click="recommendGatherGear">套上推荐厨具遗玉</span>
             <span class="btn load" @click="clearAllGather">清空全部</span>
           </div>
-          <div class="tips">一页配齐所有采集点，每个厨师只能出现一次。点【全图最优】按已有厨师自动分配。</div>
-          <div class="gather-block" v-for="block in gatherBlocks" :key="block.group">
-            <div class="contain-title">{{ block.title }}</div>
-            <div v-for="area in block.areas" :key="area.name" class="gather-area">
-              <div class="gather-area-head">
-                <span>{{ area.name }}{{ area.label ? '（'+area.label+'）' : '' }}</span>
-                <span class="gather-area-preview">{{ gatherAreaPreview(area.name) }}</span>
+          <div class="board-pills">
+            <span class="pill" :class="gatherSummary.veg === 8 ? 'ok' : ''">菜园达标 {{ gatherSummary.veg }}/8</span>
+            <span class="pill" :class="gatherSummary.jade === 6 ? 'ok' : ''">玉片达标 {{ gatherSummary.jade }}/6</span>
+            <span class="pill" :class="gatherSummary.cond === 6 ? 'ok' : ''">调料达标 {{ gatherSummary.cond }}/6</span>
+          </div>
+        </div>
+        <div class="board-cols">
+          <div class="board-col" v-for="block in gatherBoard" :key="block.group">
+            <div class="board-col-title">{{ block.title }}</div>
+            <div class="spot" v-for="row in block.rows" :key="row.name" :class="row.ok ? 'ok' : ''">
+              <div class="spot-head">
+                <span class="spot-name">{{ row.name }}<i v-if="row.label"> {{ row.label }}</i></span>
+                <span class="spot-flag">{{ row.ok ? '够' : '未够' }}</span>
               </div>
-              <div class="cal-contain four">
-                <div class="chef-box" v-for="index in 4" :key="area.name + '-' + (index-1)">
-                  <div class="chef" @click="openGatherPicker(area.name, index-1)">
-                    <div v-if="chefById(gatherSlot(area.name, index-1))" class="show">
-                      <div class="show-chef">
-                        <div class="name-img">
-                          <span class="name">{{ chefById(gatherSlot(area.name, index-1)).name }}</span>
-                          <div class="img icon-chef" :class="'chef_' + chefById(gatherSlot(area.name, index-1)).id">
-                            <span v-show="chefById(gatherSlot(area.name, index-1)).isPartialUlt || chefById(gatherSlot(area.name, index-1)).isSelfUlt" class="ultimate">满</span>
-                          </div>
-                        </div>
+              <div class="spot-bonus">采集加成　{{ row.bonus }}</div>
+              <div class="spot-chefs">
+                <div class="chip-box" v-for="(chip, index) in row.chips" :key="row.name + '-' + index">
+                  <div class="chip" @click="openGatherPicker(row.name, index)">
+                    <template v-if="chip.chefId">
+                      <div class="icon-chef mini" :class="'chef_' + chip.chefId"></div>
+                      <div class="chip-text">
+                        <b>{{ chip.name }}</b>
+                        <em>{{ chip.stat }}</em>
                       </div>
-                    </div>
-                    <div class="chef-empty" v-else>
-                      <i class="el-icon-plus"></i>
-                      <span>选择厨师</span>
-                    </div>
+                    </template>
+                    <template v-else><i class="el-icon-plus"></i> 空位</template>
+                  </div>
+                  <div class="chip-gear" v-if="chip.chefId">
+                    <span @click.stop="openGatherGear(row.name, index, 'equip')">{{ chip.equipName || '厨具' }}</span>
+                    <span @click.stop="openGatherGear(row.name, index, 'amber', 0)">{{ chip.amberNames[0] || '红' }}</span>
+                    <span @click.stop="openGatherGear(row.name, index, 'amber', 1)">{{ chip.amberNames[1] || '绿' }}</span>
+                    <span @click.stop="openGatherGear(row.name, index, 'amber', 2)">{{ chip.amberNames[2] || '蓝' }}</span>
                   </div>
                 </div>
               </div>
@@ -586,98 +594,89 @@
     </div>
 
     <div v-show="navId === 13">
-      <div class="ultimate-box" :style="'height: '+ boxHeight + 'px;'">
-        <div class="title">无冲突金色符文</div>
-        <div class="hr"></div>
-        <div class="box-body">
-          <div class="p">勾选要刷的金符文，按染井/桑阳无冲突表推荐菜谱。同一方案里贵客不打架。</div>
-          <div class="checkbox-contain" style="margin-top: 8px;">
-            <span class="checkbox" v-for="item in goldRuneNames" :key="item" :class="goldRuneSelected[item] ? 'active' : ''" @click="goldRuneSelected[item] = !goldRuneSelected[item]">{{ item }}</span>
-            <span class="checkbox" :class="goldRuneOwnedOnly ? 'active' : ''" @click="goldRuneOwnedOnly = !goldRuneOwnedOnly">只看已有</span>
-          </div>
-          <div class="contain" style="margin-top: 10px;">
-            <div class="prepend-input">
-              <div class="input-box">
-                <div class="prepend">份数</div>
-                <input type="number" v-model.number="goldRuneServings">
-              </div>
-            </div>
-          </div>
-          <div class="p">上场贵客加成 <b>{{ goldRuneBonus }}%</b>　5火金符文估测贵客率 <b>{{ goldRuneRate }}%</b>（换厨/厨具/遗玉即时变，玩家测试有误差）</div>
-          <div class="btn-box" style="padding-left: 3px;">
+      <div class="board" :style="'height: '+ boxHeight + 'px;'">
+        <div class="board-top">
+          <div class="board-actions">
             <span class="btn" @click="selectAllGoldRunes">全选符文</span>
             <span class="btn" @click="recommendGoldChefs">推荐贵客厨</span>
             <span class="btn" @click="recommendGoldGear">套上推荐厨具遗玉</span>
             <span class="btn load" @click="clearGoldRunes">清空勾选</span>
+            <span class="board-servings">份数 <input type="number" v-model.number="goldRuneServings"></span>
+            <span class="checkbox" :class="goldRuneOwnedOnly ? 'active' : ''" @click="goldRuneOwnedOnly = !goldRuneOwnedOnly">只看已有</span>
           </div>
-          <div class="cal-contain" style="margin-top: 10px;">
-            <div class="chef-box" v-for="(slot, index) in goldRuneSlots" :key="'gold-'+index">
-              <div class="chef" :class="calFocus==='Chef_'+index ? 'focus' : ''" @click="openPicker('gold', index)">
-                <div v-if="chefById(slot)" class="show">
-                  <div class="show-chef">
-                    <div class="name-img">
-                      <span class="name">{{ chefById(slot).name }}</span>
-                      <div class="img icon-chef" :class="'chef_' + chefById(slot).id">
-                        <span v-show="chefById(slot).isPartialUlt || chefById(slot).isSelfUlt" class="ultimate">满</span>
-                      </div>
-                    </div>
-                    <div class="skill-box">
-                      <div><span class="label">稀客</span><span class="val">{{ chefById(slot).guestAppear }}%</span></div>
-                    </div>
+          <div class="board-pills">
+            <span class="pill accent">贵客加成 +{{ goldRuneBonus }}%</span>
+            <span class="pill accent">符文概率 +{{ goldRuneAntique }}%</span>
+            <span class="pill ok">估测贵客率 {{ goldRuneRate }}%</span>
+          </div>
+        </div>
+        <div class="board-cols">
+          <div class="board-col">
+            <div class="board-col-title">左 · 符文与上场</div>
+            <div class="checkbox-contain gold-runes">
+              <span class="checkbox" v-for="item in goldRuneNames" :key="item" :class="goldRuneSelected[item] ? 'active' : ''" @click="goldRuneSelected[item] = !goldRuneSelected[item]">{{ item }}</span>
+            </div>
+            <div class="gold-chef" v-for="(slot, index) in goldRuneSlots" :key="'gold-'+index">
+              <div class="gold-chef-main" @click="openPicker('gold', index)">
+                <template v-if="chefById(slot)">
+                  <div class="icon-chef" :class="'chef_' + chefById(slot).id"></div>
+                  <div class="gold-chef-info">
+                    <b>{{ chefById(slot).name }}</b>
+                    <em>{{ chefById(slot).skillDesc }}</em>
+                    <span>贵客 +{{ chefById(slot).guestAppear }}%</span>
                   </div>
-                  <div class="show-condiment">{{ chefById(slot).skillDesc }}</div>
-                </div>
-                <div class="chef-empty" v-else>
-                  <i class="el-icon-plus"></i>
-                  <span>选择厨师</span>
-                </div>
+                </template>
+                <template v-else><i class="el-icon-plus"></i> 选择厨师</template>
               </div>
-              <div class="equip" :class="calFocus==='Equip_'+index ? 'focus' : ''" @click="openPicker('equip', index)">
-                <div class="show" v-if="chefById(slot) && chefById(slot).equipName"><span class="name">{{ chefById(slot).equipName }}</span></div>
-                <div class="equip-empty" v-else><i class="el-icon-plus"></i></div>
-              </div>
-              <div class="rep-box">
-                <div class="rep" v-for="(amber, ai) in (chefById(slot) && chefById(slot).amberSlots || [{color:'红'},{color:'绿'},{color:'蓝'}])" :key="ai" @click="openPicker('amber', index, ai)">
-                  <div class="show" v-if="amber.id">
-                    <div class="img icon-amber" :class="'amber_' + amber.id"></div>
-                    <div class="rep-detail">{{ amber.name }}</div>
-                  </div>
-                  <div class="rep-empty" v-else><i class="el-icon-plus"></i></div>
+              <div class="gold-gear">
+                <div class="gear-btn" @click="openPicker('equip', index)">{{ chefById(slot) && chefById(slot).equipName ? chefById(slot).equipName : '厨具' }}</div>
+                <div class="gear-btn" v-for="(amber, ai) in (chefById(slot) && chefById(slot).amberSlots || [{color:'红'},{color:'绿'},{color:'蓝'}])" :key="ai" @click="openPicker('amber', index, ai)">
+                  {{ amber.name || (amber.color + '玉') }}
                 </div>
               </div>
             </div>
           </div>
-        </div>
-        <div class="title">推荐方案</div>
-        <div class="hr"></div>
-        <div class="box-body">
-          <div class="p" v-if="goldRuneChefText">推荐厨师：{{ goldRuneChefText }}</div>
-          <div class="p" v-if="!goldRunePlan.length">先勾选要刷的金符文，并点【推荐贵客厨】。</div>
-          <el-table v-else :data="goldRunePlan" style="width: 100%" size="mini">
-            <el-table-column prop="rune" label="符文" width="90"></el-table-column>
-            <el-table-column prop="name" label="菜谱" min-width="110"></el-table-column>
-            <el-table-column prop="guests" label="贵客" min-width="90"></el-table-column>
-            <el-table-column prop="time_show" label="单时间" width="80"></el-table-column>
-            <el-table-column prop="total_time_show" label="总时间" width="90"></el-table-column>
-            <el-table-column prop="origin" label="来源" min-width="100"></el-table-column>
-            <el-table-column label="已有" width="55">
-              <template slot-scope="scope">{{ scope.row.got ? '是' : '否' }}</template>
-            </el-table-column>
-          </el-table>
-        </div>
-        <div class="title">该符文全部无冲突菜</div>
-        <div class="hr"></div>
-        <div class="box-body">
-          <el-table :data="goldRuneOptions" style="width: 100%" size="mini">
-            <el-table-column prop="rune" label="符文" width="90"></el-table-column>
-            <el-table-column prop="name" label="菜谱" min-width="110"></el-table-column>
-            <el-table-column prop="guests" label="贵客" min-width="90"></el-table-column>
-            <el-table-column prop="time_show" label="单时间" width="80"></el-table-column>
-            <el-table-column prop="origin" label="来源" min-width="100"></el-table-column>
-            <el-table-column label="已有" width="55">
-              <template slot-scope="scope">{{ scope.row.got ? '是' : '否' }}</template>
-            </el-table-column>
-          </el-table>
+          <div class="board-col">
+            <div class="board-col-title">中 · 贵客加成 / 推荐菜</div>
+            <div class="rate-card">
+              <div class="rate-line"><span>贵客加成</span><b>+{{ goldRuneBonus }}%</b></div>
+              <div class="rate-line"><span>符文概率</span><b>+{{ goldRuneAntique }}%</b></div>
+              <div class="rate-line strong"><span>估测贵客率（{{ goldRuneServings }}份）</span><b>{{ goldRuneRate }}%</b></div>
+              <div class="rate-note">贵客加成是上场三人技能/修炼/厨具/遗玉合计。估测贵客率随份数变，玩家测试有误差。</div>
+            </div>
+            <div class="rate-person" v-for="row in goldRuneBreakdown" :key="row.name">
+              <b>{{ row.name }}　贵客 +{{ row.appear }}%</b>
+              <span>技能 +{{ row.personal.appear }}%</span>
+              <span>修炼 +{{ row.ult.appear }}%</span>
+              <span>厨具 +{{ row.equip.appear }}%{{ row.equipName ? '（' + row.equipName + '）' : '' }}</span>
+              <span>遗玉 +{{ row.amber.appear }}%{{ row.amberText ? '（' + row.amberText + '）' : '' }}</span>
+              <span>符文概率 +{{ row.antique }}%</span>
+            </div>
+            <div class="empty-hint" v-if="!goldRuneBreakdown.length">左边选上厨师后，这里拆开显示每人的概率加成。</div>
+            <div class="plan-list" v-if="goldRunePlan.length">
+              <div class="plan-item" v-for="item in goldRunePlan" :key="item.rune + item.name">
+                <div class="plan-rune">{{ item.rune }}</div>
+                <div class="plan-body">
+                  <b>{{ item.name }}</b>
+                  <em>{{ item.guests }} · {{ item.time_show }} · {{ item.origin }}</em>
+                </div>
+                <span class="plan-got" :class="item.got ? 'ok' : ''">{{ item.got ? '已有' : '未有' }}</span>
+              </div>
+            </div>
+            <div class="empty-hint" v-else>左边勾选要刷的金符文，中间出推荐菜。</div>
+          </div>
+          <div class="board-col">
+            <div class="board-col-title">右 · 无冲突备选</div>
+            <div class="plan-item thin" v-for="item in goldRuneOptions" :key="'opt-'+item.rune+item.name">
+              <div class="plan-rune">{{ item.rune }}</div>
+              <div class="plan-body">
+                <b>{{ item.name }}</b>
+                <em>{{ item.guests }} · {{ item.time_show }}</em>
+              </div>
+              <span class="plan-got" :class="item.got ? 'ok' : ''">{{ item.got ? '已有' : '未有' }}</span>
+            </div>
+            <div class="empty-hint" v-if="!goldRuneOptions.length">勾选符文后这里列出全部无冲突菜。</div>
+          </div>
         </div>
       </div>
     </div>
@@ -898,8 +897,8 @@
         <div class="box-body">
           <div class="contain-title">探索</div>
           <div class="p"><span class="add"><i class="el-icon-plus"></i> 本站新增</span> 菜园 / 玉片 / 调料全部地点在同一页配置，每地 4 人，同一厨师不能去两个地点。</div>
-          <div class="p">菜园看单采集维合计 + 素材获得%，点数够才出对应食材。玉片看双采集维合计，15 一档最高 240。调料看口味值，目标 1080。</div>
-          <div class="p">点【全图最优】按已有厨师自动分配全图，遗玉厨具按个人档已装备计算。</div>
+          <div class="p">菜园看单采集维合计 + 该地点自己的素材获得%和概率加成（谁在这个菜地，概率就只算谁的，不均到全图）。点数够才出对应食材。玉片看双采集维合计，15 一档最高 240。调料看口味值，目标 1080。</div>
+          <div class="p">点【全图最优】先锁菜园点数，再分玉片；厨具/遗玉只从你当前已经戴着的里面重分配，不会发明鉴里没有的。同一套人装再点一次结果不变。点厨师换人，点厨具/遗玉可单换（也只列出已有）。</div>
         </div>
         <div class="box-body">
           <div class="contain-title">金符文</div>

@@ -314,6 +314,131 @@
           { group: 'cond', title: '调料区', areas: E.COND_AREAS }
         ];
       },
+      gatherBoard: function () {
+        var that = this;
+        var labels = { meat: '肉', fish: '鱼', veg: '菜', creation: '面' };
+        return this.gatherBlocks.map(function (block) {
+          return {
+            group: block.group,
+            title: block.title,
+            rows: block.areas.map(function (area) {
+              var ids = that.gatherTeams[area.name] || [null, null, null, null];
+              while (ids.length < 4) {
+                ids.push(null);
+              }
+              var team = ids.map(function (id) { return that.chefById(id); });
+              var filled = team.filter(Boolean);
+              var preview = that.data ? E.previewGather(area, filled, that.data) : { ok: false, points: 0, gain: 0 };
+              var aura = filled.reduce(function (sum, chef) {
+                var bonus = chef.auraBonus || {};
+                if (area.key) {
+                  return sum + (Number(bonus[area.key]) || 0);
+                }
+                if (area.keys) {
+                  return sum + area.keys.reduce(function (inner, key) {
+                    return inner + (Number(bonus[key]) || 0);
+                  }, 0);
+                }
+                return sum;
+              }, 0);
+              var bonus = '';
+              if (preview.kind === 'veg') {
+                var crits = preview.crits || [];
+                var critText = crits.length
+                  ? crits.map(function (item) {
+                    return item.name + ' ' + item.chance + '%额外+' + item.material + '%';
+                  }).join('、')
+                  : '无';
+                bonus = '点数 ' + (preview.points || 0) + '/' + (preview.need || 0) + '　素材获得 +' + (preview.gain || 0) + '%　概率加成 ' + critText;
+              } else if (preview.kind === 'jade') {
+                bonus = (preview.label || area.label) + ' ' + (preview.points || 0) + '　档位 ' + (preview.tier || 0) + '/240';
+              } else {
+                bonus = (preview.label || area.flavorLabel || '') + ' ' + (preview.points || 0) + '/' + (preview.need || 1080);
+              }
+              if (aura) {
+                bonus += '　光环采集 +' + aura;
+              }
+              var chips = ids.map(function (id) {
+                var chef = that.chefById(id);
+                var stat = '';
+                if (chef) {
+                  if (area.key) {
+                    stat = (area.label || labels[area.key] || '') + chef.gather[area.key];
+                    if (chef.critChance) {
+                      stat += '　' + chef.critChance + '%额外+' + (chef.critMaterial || 0) + '%';
+                    }
+                  } else if (area.keys) {
+                    stat = area.keys.map(function (key) {
+                      return (labels[key] || key) + chef.gather[key];
+                    }).join(' ');
+                  } else {
+                    stat = (area.flavorLabel || '') + (chef.flavor[area.flavor] || 0);
+                  }
+                }
+                return {
+                  id: id,
+                  name: chef ? chef.name : '',
+                  chefId: chef ? chef.id : 0,
+                  stat: stat,
+                  equipName: chef ? (chef.equipName || '') : '',
+                  amberNames: chef ? (chef.amberSlots || []).map(function (slot) {
+                    return slot.name || slot.color;
+                  }) : []
+                };
+              });
+              return {
+                name: area.name,
+                label: area.label || area.flavorLabel || '',
+                chips: chips,
+                preview: preview,
+                ok: !!preview.ok,
+                bonus: bonus
+              };
+            })
+          };
+        });
+      },
+      gatherSummary: function () {
+        var veg = 0;
+        var jade = 0;
+        var cond = 0;
+        var gain = 0;
+        this.gatherBoard.forEach(function (block) {
+          block.rows.forEach(function (row) {
+            if (block.group === 'veg') {
+              gain += Number(row.preview.gain) || 0;
+              if (row.ok) {
+                veg += 1;
+              }
+            } else if (block.group === 'jade') {
+              if (row.ok) {
+                jade += 1;
+              }
+            } else if (row.ok) {
+              cond += 1;
+            }
+          });
+        });
+        return {
+          veg: veg,
+          jade: jade,
+          cond: cond,
+          gain: Math.round(gain * 10) / 10
+        };
+      },
+      goldRuneBreakdown: function () {
+        var that = this;
+        return this.goldRuneSlots.map(function (id) {
+          return that.chefById(id);
+        }).filter(Boolean).map(function (chef) {
+          return E.chefGuestBreakdown(chef);
+        });
+      },
+      goldRuneAntique: function () {
+        return this.goldRuneBreakdown.reduce(function (sum, row) {
+          return sum + (row.antique || 0);
+        }, 0);
+      },
       goldRuneRecommend: function () {
         var selected = this.goldRuneNames.filter(function (name) {
           return this.goldRuneSelected[name];
@@ -327,7 +452,8 @@
         return this.goldRuneRecommend.options;
       },
       goldRuneBonus: function () {
-        var chefs = this.goldRuneSlots.map(this.chefById);
+        var that = this;
+        var chefs = this.goldRuneSlots.map(function (id) { return that.chefById(id); });
         if (!chefs.some(Boolean)) {
           return 0;
         }
@@ -338,7 +464,7 @@
       },
       goldRuneChefText: function () {
         return this.goldRuneSlots.map(this.chefById).filter(Boolean).map(function (c) {
-          return c.name + ' 稀客' + (c.guestAppear || 0) + '%';
+          return c.name + ' 贵客' + (c.guestAppear || 0) + '%';
         }).join('、');
       },
       chefsView: function () {
@@ -486,24 +612,44 @@
       pickerList: function () {
         var keyword = this.pickerKeyword;
         if (this.pickerKind === 'equip') {
+          var gatherArea = this.navId === 5 ? E.findArea(this.gatherArea) : null;
+          var ownedEquips = this.navId === 5 ? E.ownedEquipIds(this.user) : null;
           return this.equips.filter(function (item) {
+            if (ownedEquips && ownedEquips.indexOf(item.id) < 0) {
+              return false;
+            }
             return matchKeyword([item.name, item.skill].join(' '), keyword);
-          }).sort(function (a, b) {
-            return (b.guestAppear || 0) - (a.guestAppear || 0);
-          }).slice(0, 80).map(function (item) {
-            var extra = item.guestAppear ? ('稀客+' + item.guestAppear + '% ') : '';
-            return { id: item.id, name: item.name, sub: extra + item.skill };
-          });
+          }).map(function (item) {
+            var gather = gatherArea ? E.scoreEquipForGather(this.data, item.id, gatherArea) : { score: 0, label: '' };
+            var extra = gather.label ? (gather.label + ' ') : (item.guestAppear ? ('贵客+' + item.guestAppear + '% ') : '');
+            return { id: item.id, name: item.name, sub: extra + item.skill, score: gather.score, guest: item.guestAppear || 0 };
+          }.bind(this)).sort(function (a, b) {
+            if (gatherArea) {
+              return (b.score || 0) - (a.score || 0) || (b.guest || 0) - (a.guest || 0);
+            }
+            return (b.guest || 0) - (a.guest || 0);
+          }).slice(0, 80);
         }
         if (this.pickerKind === 'amber') {
           var type = this.pickerSlot + 1;
+          var amberArea = this.navId === 5 ? E.findArea(this.gatherArea) : null;
+          var gatherChef = this.navId === 5 ? this.chefById(this.currentGather[this.pickerIndex]) : null;
+          var diskLv = gatherChef ? gatherChef.diskLv : 1;
+          var ownedAmbers = this.navId === 5 ? E.ownedAmberIds(this.user) : null;
           return this.ambers.filter(function (item) {
+            if (ownedAmbers && ownedAmbers.indexOf(item.id) < 0) {
+              return false;
+            }
             return item.type === type && matchKeyword([item.name, item.skill].join(' '), keyword);
-          }).sort(function (a, b) {
-            return (b.guestAppear || 0) - (a.guestAppear || 0);
           }).map(function (item) {
-            var extra = item.guestAppear ? ('稀客+' + item.guestAppear + '% ') : '';
-            return { id: item.id, name: item.name, sub: extra + item.skill };
+            var gather = amberArea ? E.scoreAmberForGather(this.data, item.id, amberArea, diskLv) : { score: 0, label: '' };
+            var extra = gather.label ? (gather.label + ' ') : (item.guestAppear ? ('贵客+' + item.guestAppear + '% ') : '');
+            return { id: item.id, name: item.name, sub: extra + item.skill, score: gather.score, guest: item.guestAppear || 0 };
+          }.bind(this)).sort(function (a, b) {
+            if (amberArea) {
+              return (b.score || 0) - (a.score || 0) || (b.guest || 0) - (a.guest || 0);
+            }
+            return (b.guest || 0) - (a.guest || 0);
           });
         }
         var used = {};
@@ -534,7 +680,7 @@
           }
           return 0;
         }.bind(this)).slice(0, 80).map(function (chef) {
-          var extra = this.pickerKind === 'gold' && chef.guestAppear ? ('稀客+' + chef.guestAppear + '% ') : '';
+          var extra = this.pickerKind === 'gold' && chef.guestAppear ? ('贵客+' + chef.guestAppear + '% ') : '';
           return { id: chef.id, name: chef.name, sub: extra + (chef.ultimateSkillShow || chef.skill) };
         }.bind(this));
       },
@@ -545,7 +691,7 @@
         }
         var analysis = E.analyzeOpenTeam(chefs);
         var deco = E.toInt(this.userUltimate && this.userUltimate.decoBuff, 0);
-        return '开业时间 ' + analysis.total.openTime + '%　金币 ' + (analysis.total.gold + deco) + '%　稀客 ' + analysis.total.guest + '%　装饰 ' + deco + '%';
+        return '开业时间 ' + analysis.total.openTime + '%　金币 ' + (analysis.total.gold + deco) + '%　贵客 ' + analysis.total.guest + '%　装饰 ' + deco + '%';
       },
       ultimateOptions: function () {
         return this.data ? E.listUltimateOptions(this.data) : { partial: [], self: [] };
@@ -564,7 +710,13 @@
         }
         var preview = E.previewGather(area, team, this.data);
         if (preview.kind === 'veg') {
-          return preview.title + '　' + preview.label + '点 ' + preview.points + '/' + preview.need + '　素材期望 ' + preview.gain + '%';
+          var crits = preview.crits || [];
+          var critText = crits.length
+            ? crits.map(function (item) {
+              return item.name + ' ' + item.chance + '%额外+' + item.material + '%';
+            }).join('、')
+            : '无';
+          return preview.title + '　' + preview.label + '点 ' + preview.points + '/' + preview.need + '　素材获得 +' + preview.gain + '%　概率加成 ' + critText;
         }
         if (preview.kind === 'jade') {
           return preview.title + '　' + preview.label + ' ' + preview.points + '　档位 ' + preview.tier + '/240';
@@ -963,7 +1115,13 @@
         var team = (this.gatherTeams[areaName] || []).map(this.chefById).filter(Boolean);
         var preview = E.previewGather(area, team, this.data);
         if (preview.kind === 'veg') {
-          return preview.label + ' ' + preview.points + '/' + preview.need + ' 素材' + preview.gain + '%';
+          var crits = preview.crits || [];
+          var critText = crits.length
+            ? crits.map(function (item) {
+              return item.name + item.chance + '%额外+' + item.material + '%';
+            }).join('、')
+            : '无';
+          return preview.label + ' ' + preview.points + '/' + preview.need + ' 素材+' + preview.gain + '% 概率 ' + critText;
         }
         if (preview.kind === 'jade') {
           return preview.label + ' ' + preview.points + ' 档' + preview.tier;
@@ -974,17 +1132,51 @@
         this.gatherArea = areaName;
         this.openPicker('gather', index);
       },
+      applyGatherAssign: function (assigned) {
+        Object.keys(assigned).forEach(function (name) {
+          this.$set(this.gatherTeams, name, assigned[name]);
+        }.bind(this));
+      },
       recommendAllGather: function () {
         if (!this.ownedChefs.length) {
           this.toast('先导入已有厨师');
           return;
         }
-        var assigned = E.assignAllGather(this.ownedChefs, this.data);
-        Object.keys(assigned).forEach(function (name) {
-          this.$set(this.gatherTeams, name, assigned[name]);
-        }.bind(this));
+        var bare = E.buildOwnedChefs(this.data, this.user, { skipGear: true });
+        var assigned = E.assignAllGather(bare, this.data);
+        this.applyGatherAssign(assigned);
+        if (this.user && this.data) {
+          E.recommendGatherGear(this.user, this.data, assigned);
+          this.setUser(this.user);
+          this.saveUserToDisk(this.user);
+        }
         this.persist();
-        this.toast('已按全图最优分配，同一厨师只出现一次');
+        this.toast('已按固定规则分人，并只从你已有厨具/遗玉里套最好的');
+      },
+      recommendGatherGear: function () {
+        if (!this.user || !this.data) {
+          this.toast('先导入个人数据');
+          return;
+        }
+        var hasChef = Object.keys(this.gatherTeams).some(function (name) {
+          return (this.gatherTeams[name] || []).some(Boolean);
+        }.bind(this));
+        if (!hasChef) {
+          this.recommendAllGather();
+          return;
+        }
+        E.recommendGatherGear(this.user, this.data, this.gatherTeams);
+        this.setUser(this.user);
+        this.saveUserToDisk(this.user);
+        this.toast('已从你已有厨具/遗玉里按地点套上最好的');
+      },
+      openGatherGear: function (areaName, index, kind, slot) {
+        this.gatherArea = areaName;
+        if (!this.gatherTeams[areaName] || !this.gatherTeams[areaName][index]) {
+          this.toast('先选择厨师');
+          return;
+        }
+        this.openPicker(kind, index, slot);
       },
       clearAllGather: function () {
         var that = this;
@@ -1024,7 +1216,7 @@
         E.recommendGoldGear(this.user, this.data, this.goldRuneSlots);
         this.setUser(this.user);
         this.saveUserToDisk(this.user);
-        this.toast('已给上场三人套上最高稀客厨具/遗玉');
+        this.toast('已给上场三人套上最高贵客厨具/遗玉');
       },
       changeGot: function (val, chefId) {
         if (!this.user) {

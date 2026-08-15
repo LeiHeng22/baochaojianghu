@@ -155,7 +155,9 @@
     return String((effect && effect.condition) || 'Self');
   }
 
-  function buildChef(raw, user, data, skillMap) {
+  function buildChef(raw, user, data, skillMap, opt) {
+    opt = opt || {};
+    var skipGear = !!opt.skipGear;
     var chefId = Number(raw.chefId);
     var diskLv = toInt((user.chefDiskLv || {})[chefId], 1);
     var amberIds = (user.chefAmber || {})[chefId] || [];
@@ -209,7 +211,18 @@
 
     var amberNames = [];
     var amberEffects = [];
-    var amberSlots = AMBER_COLORS.map(function (color, index) {
+    var amberSlots = skipGear ? AMBER_COLORS.map(function (color) {
+      return {
+        type: color.type,
+        color: color.color,
+        origin: color.origin,
+        id: 0,
+        name: '',
+        desc: '',
+        img: '',
+        galleryId: ''
+      };
+    }) : AMBER_COLORS.map(function (color, index) {
       var id = toInt(amberIds[index], 0);
       var slot = {
         type: color.type,
@@ -260,7 +273,7 @@
     var equipEffects = [];
     var equipImg = '';
     var equipGalleryId = '';
-    if (equipId) {
+    if (!skipGear && equipId) {
       var equip = (data.equips || []).find(function (e) { return Number(e.equipId) === Number(equipId); });
       if (equip) {
         equipName = equip.name;
@@ -343,6 +356,26 @@
     return { appear: appear, antique: antique };
   }
 
+  function chefGuestBreakdown(chef) {
+    var personal = guestRateFromEffects(chef.personalEffects);
+    var ult = (chef.isPartialUlt || chef.isSelfUlt)
+      ? guestRateFromEffects(chef.ultimateEffects)
+      : { appear: 0, antique: 0 };
+    var equip = guestRateFromEffects(chef.equipEffects);
+    var amber = guestRateFromEffects(chef.amberEffects);
+    return {
+      name: chef.name,
+      personal: personal,
+      ult: ult,
+      equip: equip,
+      amber: amber,
+      appear: personal.appear + ult.appear + equip.appear + amber.appear,
+      antique: personal.antique + ult.antique + equip.antique + amber.antique,
+      equipName: chef.equipName || '',
+      amberText: (chef.amberNames || []).join('、')
+    };
+  }
+
   function chefGuestScore(chef) {
     var personal = guestRateFromEffects(chef.personalEffects);
     var ult = { appear: 0, antique: 0 };
@@ -380,18 +413,18 @@
     return gain + (chef.critChance / 100) * chef.critMaterial;
   }
 
-  function buildAllChefs(data, user) {
+  function buildAllChefs(data, user, opt) {
     var skillMap = skillMapOf(data);
     var chefGot = (user && user.chefGot) || {};
     return (data.chefs || []).map(function (c) {
-      var chef = buildChef(c, user || {}, data, skillMap);
+      var chef = buildChef(c, user || {}, data, skillMap, opt);
       chef.got = chefGot[c.chefId] === true;
       return chef;
     }).sort(function (a, b) { return b.rarity - a.rarity || a.id - b.id; });
   }
 
-  function buildOwnedChefs(data, user) {
-    return buildAllChefs(data, user).filter(function (c) { return c.got; });
+  function buildOwnedChefs(data, user, opt) {
+    return buildAllChefs(data, user, opt).filter(function (c) { return c.got; });
   }
 
   function teamAuraBonus(chefs) {
@@ -423,6 +456,18 @@
     return Math.round((total / chefs.length) * 10) / 10;
   }
 
+  function teamCritList(chefs) {
+    return (chefs || []).filter(function (chef) {
+      return chef && (chef.critChance || 0) > 0;
+    }).map(function (chef) {
+      return {
+        name: chef.name,
+        chance: chef.critChance,
+        material: chef.critMaterial || 0
+      };
+    });
+  }
+
   function percentQty(value, gain) {
     return Math.ceil((value * (100 + Number(gain))) / 100);
   }
@@ -430,7 +475,7 @@
   function gardenYield(map, chefs) {
     var area = VEG_AREAS.find(function (x) { return x.name === map.name; });
     var points = teamPoints(chefs, area.key);
-    var gain = teamGain(chefs, area.key);
+    var gain = teamRawGain(chefs, area.key);
     var materials = (map.materials || []).map(function (m) {
       var unlocked = points >= toInt(m.skill, 0);
       var qty = (m.quantity && m.quantity[TIME_SLOT]) || [0, 0];
@@ -442,7 +487,14 @@
         max: unlocked ? percentQty(qty[1], gain) : 0
       };
     });
-    return { points: points, gain: gain, materials: materials, capacity: area.capacity, label: area.label };
+    return {
+      points: points,
+      gain: gain,
+      crits: teamCritList(chefs),
+      materials: materials,
+      capacity: area.capacity,
+      label: area.label
+    };
   }
 
   function jadeTier(points) {
@@ -466,6 +518,7 @@
         points: result.points,
         need: result.capacity,
         gain: result.gain,
+        crits: result.crits || [],
         label: result.label,
         materials: result.materials,
         ok: result.points >= result.capacity
@@ -523,49 +576,153 @@
     return result;
   }
 
-  function pickGardenTeam(chefs, area) {
-    var scored = chefs.map(function (chef) {
+  function teamRawGain(chefs, typeKey) {
+    if (!chefs.length) {
+      return 0;
+    }
+    var total = chefs.reduce(function (sum, chef) {
+      return sum + (chef.gain.base || 0) + (chef.gain[typeKey] || 0);
+    }, 0);
+    return Math.round((total / chefs.length) * 10) / 10;
+  }
+
+  function teamCrit(chefs) {
+    if (!chefs.length) {
+      return 0;
+    }
+    var total = chefs.reduce(function (sum, chef) { return sum + (chef.critChance || 0); }, 0);
+    return Math.round((total / chefs.length) * 10) / 10;
+  }
+
+  function betterGardenTeam(a, b) {
+    if (a.exp !== b.exp) {
+      return a.exp > b.exp;
+    }
+    if (a.gain !== b.gain) {
+      return a.gain > b.gain;
+    }
+    if (a.crit !== b.crit) {
+      return a.crit > b.crit;
+    }
+    if (a.team.length !== b.team.length) {
+      return a.team.length < b.team.length;
+    }
+    if (a.points !== b.points) {
+      return a.points < b.points;
+    }
+    return teamIdKey(a.team) < teamIdKey(b.team);
+  }
+
+  function teamIdKey(team) {
+    return (team || []).map(function (chef) { return chef.id; }).sort(function (a, b) { return a - b; }).join(',');
+  }
+
+  function chefJadeKeepScore(chef) {
+    var keys = topTwoGatherKeys(chef);
+    return (chef.gather[keys[0]] || 0) + (chef.gather[keys[1]] || 0);
+  }
+
+  function pickGardenMeetTeam(chefs, area) {
+    var scored = (chefs || []).map(function (chef) {
       var aura = chef.auraBonus[area.key] || 0;
-      return { chef: chef, raw: chef.gather[area.key] + PEOPLE * aura, exp: expectation(chef, area.key) };
+      return {
+        chef: chef,
+        raw: chef.gather[area.key] + PEOPLE * aura,
+        jade: chefJadeKeepScore(chef)
+      };
+    }).sort(function (a, b) {
+      return b.raw - a.raw || a.jade - b.jade || a.chef.id - b.chef.id;
+    });
+    var pool = scored.slice(0, Math.min(24, scored.length));
+    var auraFirst = scored.find(function (x) { return (x.chef.auraBonus[area.key] || 0) > 0; });
+    if (auraFirst && !pool.some(function (x) { return x.chef.id === auraFirst.chef.id; })) {
+      pool.push(auraFirst);
+    }
+    var best = null;
+    var maxSize = Math.min(PEOPLE, pool.length);
+    for (var size = 1; size <= maxSize; size++) {
+      combinations(pool, size).forEach(function (items) {
+        var team = items.map(function (x) { return x.chef; });
+        var points = teamPoints(team, area.key);
+        if (points < area.capacity) {
+          return;
+        }
+        var jade = items.reduce(function (sum, item) { return sum + item.jade; }, 0);
+        var current = { team: team, points: points, jade: jade, size: team.length };
+        if (!best) {
+          best = current;
+          return;
+        }
+        if (current.jade !== best.jade) {
+          if (current.jade < best.jade) {
+            best = current;
+          }
+          return;
+        }
+        if (current.size !== best.size) {
+          if (current.size < best.size) {
+            best = current;
+          }
+          return;
+        }
+        if (current.points !== best.points) {
+          if (current.points < best.points) {
+            best = current;
+          }
+          return;
+        }
+        if (teamIdKey(current.team) < teamIdKey(best.team)) {
+          best = current;
+        }
+      });
+    }
+    return best ? best.team : [];
+  }
+
+  function pickGardenTeam(chefs, area) {
+    var scored = (chefs || []).map(function (chef) {
+      var aura = chef.auraBonus[area.key] || 0;
+      return {
+        chef: chef,
+        raw: chef.gather[area.key] + PEOPLE * aura,
+        exp: expectation(chef, area.key),
+        crit: chef.critChance || 0
+      };
     });
     var byExp = scored.filter(function (x) { return x.exp > 0; }).sort(function (a, b) { return b.exp - a.exp || b.raw - a.raw; });
     var byRaw = scored.slice().sort(function (a, b) { return b.raw - a.raw || b.exp - a.exp; });
+    var byCrit = scored.filter(function (x) { return x.crit > 0; }).sort(function (a, b) { return b.crit - a.crit || b.exp - a.exp; });
     var poolMap = {};
     byExp.slice(0, 12).forEach(function (x) { poolMap[x.chef.id] = x; });
     byRaw.slice(0, 16).forEach(function (x) { poolMap[x.chef.id] = x; });
+    byCrit.slice(0, 8).forEach(function (x) { poolMap[x.chef.id] = x; });
     var auraFirst = scored.find(function (x) { return (x.chef.auraBonus[area.key] || 0) > 0; });
     if (auraFirst) {
       poolMap[auraFirst.chef.id] = auraFirst;
     }
     var pool = Object.keys(poolMap).map(function (id) { return poolMap[id]; });
     var best = null;
-    combinations(pool, Math.min(PEOPLE, pool.length)).forEach(function (items) {
-      var team = items.map(function (x) { return x.chef; });
-      var points = teamPoints(team, area.key);
-      var exp = teamGain(team, area.key);
-      var meet = points >= area.capacity;
-      var current = { meet: meet, exp: exp, points: points, team: team };
-      if (!best) {
-        best = current;
-        return;
-      }
-      if (meet !== best.meet) {
-        if (meet) {
+    var maxSize = Math.min(PEOPLE, pool.length);
+    for (var size = 1; size <= maxSize; size++) {
+      combinations(pool, size).forEach(function (items) {
+        var team = items.map(function (x) { return x.chef; });
+        var points = teamPoints(team, area.key);
+        if (points < area.capacity) {
+          return;
+        }
+        var current = {
+          team: team,
+          points: points,
+          exp: teamGain(team, area.key),
+          gain: teamRawGain(team, area.key),
+          crit: teamCrit(team)
+        };
+        if (!best || betterGardenTeam(current, best)) {
           best = current;
         }
-        return;
-      }
-      if (meet) {
-        if (exp > best.exp || (exp === best.exp && points < best.points)) {
-          best = current;
-        }
-        return;
-      }
-      if (points > best.points || (points === best.points && exp > best.exp)) {
-        best = current;
-      }
-    });
-    return best && best.team.length ? best.team : byRaw.slice(0, PEOPLE).map(function (x) { return x.chef; });
+      });
+    }
+    return best ? best.team : [];
   }
 
   function pickJadeTeam(chefs, area) {
@@ -607,6 +764,64 @@
     return ids.slice(0, PEOPLE);
   }
 
+  function jadePairKey(keys) {
+    return keys.slice().sort().join('+');
+  }
+
+  function jadeChefScore(chef, area) {
+    var aura = (chef.auraBonus[area.keys[0]] || 0) + (chef.auraBonus[area.keys[1]] || 0);
+    var raw = chef.gather[area.keys[0]] + chef.gather[area.keys[1]];
+    return raw + PEOPLE * aura;
+  }
+
+  function assignJadeTeams(chefs) {
+    var used = {};
+    var groups = {};
+    JADE_AREAS.forEach(function (area) {
+      groups[jadePairKey(area.keys)] = [];
+    });
+    (chefs || []).forEach(function (chef) {
+      var key = topTwoGatherKeys(chef).join('+');
+      if (groups[key]) {
+        groups[key].push(chef);
+      }
+    });
+    var order = JADE_AREAS.slice().sort(function (a, b) {
+      return (groups[jadePairKey(a.keys)] || []).length - (groups[jadePairKey(b.keys)] || []).length;
+    });
+    var result = {};
+    order.forEach(function (area) {
+      var specs = (groups[jadePairKey(area.keys)] || []).slice().sort(function (a, b) {
+        return jadeChefScore(b, area) - jadeChefScore(a, area) || b.rarity - a.rarity || a.id - b.id;
+      });
+      var team = [];
+      specs.forEach(function (chef) {
+        if (team.length < PEOPLE && !used[chef.id]) {
+          team.push(chef);
+          used[chef.id] = true;
+        }
+      });
+      result[area.name] = team;
+    });
+    var leftover = (chefs || []).filter(function (chef) { return !used[chef.id]; });
+    order.forEach(function (area) {
+      var team = result[area.name];
+      if (team.length >= PEOPLE) {
+        return;
+      }
+      leftover.slice().sort(function (a, b) {
+        return jadeChefScore(b, area) - jadeChefScore(a, area) || b.rarity - a.rarity || a.id - b.id;
+      }).forEach(function (chef) {
+        if (team.length >= PEOPLE || used[chef.id]) {
+          return;
+        }
+        team.push(chef);
+        used[chef.id] = true;
+      });
+    });
+    return result;
+  }
+
   function assignAllGather(chefs, data) {
     var used = {};
     function remain() {
@@ -622,10 +837,21 @@
     }
     var result = {};
     VEG_AREAS.forEach(function (area) {
-      result[area.name] = take(pickGardenTeam(remain(), area));
+      result[area.name] = take(pickGardenMeetTeam(remain(), area));
     });
+    var jadeTeams = assignJadeTeams(remain());
     JADE_AREAS.forEach(function (area) {
-      result[area.name] = take(pickJadeTeam(remain(), area));
+      result[area.name] = take(jadeTeams[area.name] || []);
+    });
+    VEG_AREAS.forEach(function (area) {
+      var current = (result[area.name] || []).map(function (id) {
+        return (chefs || []).find(function (c) { return c && c.id === id; }) || null;
+      }).filter(Boolean);
+      current.forEach(function (chef) {
+        delete used[chef.id];
+      });
+      var improved = pickGardenTeam(current.concat(remain()), area);
+      result[area.name] = take(improved.length ? improved : current);
     });
     COND_AREAS.forEach(function (area) {
       result[area.name] = take(pickCondTeam(remain(), area));
@@ -700,7 +926,7 @@
       lines.push('金币' + signed(gold, '%'));
     }
     if (guest) {
-      lines.push('稀客' + signed(guest, '%'));
+      lines.push('贵客' + signed(guest, '%'));
     }
     return { tech: tech, openTime: openTime, gold: gold, guest: guest, lines: lines };
   }
@@ -758,7 +984,7 @@
       total.lines.push('金币' + signed(total.gold, '%'));
     }
     if (total.guest) {
-      total.lines.push('稀客' + signed(total.guest, '%'));
+      total.lines.push('贵客' + signed(total.guest, '%'));
     }
 
     return {
@@ -1098,6 +1324,255 @@
         img: imageUrl('equip', item.galleryId)
       };
     });
+  }
+
+  function dummyGatherTarget() {
+    return {
+      gather: { meat: 0, fish: 0, veg: 0, creation: 0 },
+      flavor: { sweet: 0, sour: 0, spicy: 0, salty: 0, bitter: 0, tasty: 0 },
+      gain: { base: 0, meat: 0, fish: 0, veg: 0, creation: 0 }
+    };
+  }
+
+  function scaledSkillBundle(skillMap, skillIds, diskLv, amp) {
+    var effects = [];
+    var descs = [];
+    var levelIndex = Math.max(0, toInt(diskLv, 1) - 1);
+    (skillIds || []).forEach(function (sid) {
+      var skill = skillMap[Number(sid)];
+      if (!skill) {
+        return;
+      }
+      (skill.effect || []).forEach(function (effect) {
+        var copy = {};
+        Object.keys(effect).forEach(function (k) { copy[k] = effect[k]; });
+        copy.value = toInt(effect.value, 0) + levelIndex * toInt(amp, 0);
+        effects.push(copy);
+      });
+      if (skill.desc) {
+        descs.push(String(skill.desc).replace(/_/g, String(toInt(skill.effect && skill.effect[0] && skill.effect[0].value, 0) + levelIndex * toInt(amp, 0))));
+      }
+    });
+    return { effects: effects, desc: descs.join('；') };
+  }
+
+  function scoreGatherEffects(effects, desc, area) {
+    if (!area) {
+      return { score: 0, label: '' };
+    }
+    var target = dummyGatherTarget();
+    applyEffects(target, effects);
+    var crit = parseCrit(desc);
+    var labels = { meat: '肉', fish: '鱼', veg: '菜', creation: '面' };
+    var parts = [];
+    if (area.group === 'jade') {
+      var dual = 0;
+      area.keys.forEach(function (key) {
+        var value = target.gather[key] || 0;
+        dual += value;
+        if (value) {
+          parts.push(labels[key] + '+' + value);
+        }
+      });
+      return { score: dual, label: parts.join(' ') };
+    }
+    if (area.group === 'cond') {
+      return { score: 0, label: '' };
+    }
+    var gain = (target.gain.base || 0) + (target.gain[area.key] || 0);
+    var points = target.gather[area.key] || 0;
+    var exp = gain + (crit.chance / 100) * crit.material;
+    if (gain) {
+      parts.push('素材+' + gain + '%');
+    }
+    if (crit.chance) {
+      parts.push('暴击' + crit.chance + '%');
+    }
+    if (points) {
+      parts.push((area.label || labels[area.key] || '') + '+' + points);
+    }
+    return { score: exp * 8 + points, label: parts.join(' ') };
+  }
+
+  function scoreEquipForGather(data, equipId, area) {
+    var skillMap = skillMapOf(data);
+    var item = (data.equips || []).find(function (e) { return Number(e.equipId) === Number(equipId); });
+    if (!item) {
+      return { score: 0, label: '' };
+    }
+    var bundle = scaledSkillBundle(skillMap, item.skill, 1, 0);
+    return scoreGatherEffects(bundle.effects, bundle.desc, area);
+  }
+
+  function scoreAmberForGather(data, amberId, area, diskLv) {
+    var skillMap = skillMapOf(data);
+    var item = (data.ambers || []).find(function (a) { return Number(a.amberId) === Number(amberId); });
+    if (!item) {
+      return { score: 0, label: '' };
+    }
+    var bundle = scaledSkillBundle(skillMap, item.skill, diskLv, item.amplification);
+    return scoreGatherEffects(bundle.effects, bundle.desc, area);
+  }
+
+  function countWornEquips(user) {
+    var counts = {};
+    Object.keys((user && user.chefEquip) || {}).forEach(function (chefId) {
+      var id = toInt(user.chefEquip[chefId], 0);
+      if (id) {
+        counts[id] = (counts[id] || 0) + 1;
+      }
+    });
+    return counts;
+  }
+
+  function countWornAmbers(user) {
+    var counts = {};
+    Object.keys((user && user.chefAmber) || {}).forEach(function (chefId) {
+      (user.chefAmber[chefId] || []).forEach(function (amberId) {
+        var id = toInt(amberId, 0);
+        if (id) {
+          counts[id] = (counts[id] || 0) + 1;
+        }
+      });
+    });
+    return counts;
+  }
+
+  function ownedEquipIds(user) {
+    return Object.keys(countWornEquips(user)).map(Number);
+  }
+
+  function ownedAmberIds(user) {
+    return Object.keys(countWornAmbers(user)).map(Number);
+  }
+
+  function pickBestOwnedId(counts, scoreOf) {
+    var bestId = 0;
+    var bestScore = 0;
+    Object.keys(counts).forEach(function (key) {
+      var id = Number(key);
+      if ((counts[id] || 0) <= 0) {
+        return;
+      }
+      var score = scoreOf(id);
+      if (score > bestScore || (score === bestScore && score > 0 && (!bestId || id < bestId))) {
+        if (score > 0) {
+          bestScore = score;
+          bestId = id;
+        }
+      }
+    });
+    return bestId;
+  }
+
+  function recommendGatherGear(user, data, teams) {
+    var equipCounts = countWornEquips(user);
+    var amberCounts = countWornAmbers(user);
+    var originalEquip = Object.assign({}, user.chefEquip || {});
+    var originalAmber = {};
+    Object.keys(user.chefAmber || {}).forEach(function (chefId) {
+      originalAmber[chefId] = (user.chefAmber[chefId] || []).slice();
+    });
+    var jobs = [];
+    JADE_AREAS.concat(VEG_AREAS, COND_AREAS).forEach(function (area) {
+      (teams[area.name] || []).forEach(function (chefId) {
+        if (!chefId) {
+          return;
+        }
+        jobs.push({
+          chefId: Number(chefId),
+          area: area,
+          diskLv: toInt((user.chefDiskLv || {})[chefId], 1)
+        });
+      });
+    });
+    jobs.sort(function (a, b) {
+      var groupOrder = { jade: 0, veg: 1, cond: 2 };
+      return (groupOrder[a.area.group] || 9) - (groupOrder[b.area.group] || 9)
+        || String(a.area.name).localeCompare(String(b.area.name))
+        || a.chefId - b.chefId;
+    });
+    var gatherSet = {};
+    var pickEquip = {};
+    var pickAmber = {};
+    jobs.forEach(function (job) {
+      gatherSet[job.chefId] = true;
+      pickAmber[job.chefId] = [0, 0, 0];
+      var equipId = pickBestOwnedId(equipCounts, function (id) {
+        return scoreEquipForGather(data, id, job.area).score;
+      });
+      if (equipId) {
+        pickEquip[job.chefId] = equipId;
+        equipCounts[equipId] -= 1;
+      }
+      [1, 2, 3].forEach(function (type) {
+        var amberId = pickBestOwnedId(amberCounts, function (id) {
+          var item = (data.ambers || []).find(function (a) { return Number(a.amberId) === Number(id); });
+          if (!item || Number(item.type) !== type) {
+            return 0;
+          }
+          return scoreAmberForGather(data, id, job.area, job.diskLv).score;
+        });
+        if (amberId) {
+          pickAmber[job.chefId][type - 1] = amberId;
+          amberCounts[amberId] -= 1;
+        }
+      });
+    });
+    jobs.forEach(function (job) {
+      if (pickEquip[job.chefId]) {
+        setChefEquip(user, job.chefId, pickEquip[job.chefId]);
+      } else {
+        var keepEquip = toInt(originalEquip[job.chefId], 0);
+        if (keepEquip && (equipCounts[keepEquip] || 0) > 0) {
+          setChefEquip(user, job.chefId, keepEquip);
+          equipCounts[keepEquip] -= 1;
+        } else {
+          setChefEquip(user, job.chefId, 0);
+        }
+      }
+      [0, 1, 2].forEach(function (slot) {
+        var picked = pickAmber[job.chefId][slot];
+        if (picked) {
+          setChefAmber(user, job.chefId, slot, picked);
+          return;
+        }
+        var keepAmber = toInt((originalAmber[job.chefId] || [])[slot], 0);
+        if (keepAmber && (amberCounts[keepAmber] || 0) > 0) {
+          setChefAmber(user, job.chefId, slot, keepAmber);
+          amberCounts[keepAmber] -= 1;
+        } else {
+          setChefAmber(user, job.chefId, slot, 0);
+        }
+      });
+    });
+    Object.keys(originalEquip).forEach(function (chefId) {
+      if (gatherSet[Number(chefId)]) {
+        return;
+      }
+      var id = toInt(originalEquip[chefId], 0);
+      if (id && (equipCounts[id] || 0) > 0) {
+        setChefEquip(user, chefId, id);
+        equipCounts[id] -= 1;
+      } else {
+        setChefEquip(user, chefId, 0);
+      }
+    });
+    Object.keys(originalAmber).forEach(function (chefId) {
+      if (gatherSet[Number(chefId)]) {
+        return;
+      }
+      [0, 1, 2].forEach(function (slot) {
+        var id = toInt((originalAmber[chefId] || [])[slot], 0);
+        if (id && (amberCounts[id] || 0) > 0) {
+          setChefAmber(user, chefId, slot, id);
+          amberCounts[id] -= 1;
+        } else {
+          setChefAmber(user, chefId, slot, 0);
+        }
+      });
+    });
+    return user;
   }
 
   function recommendGoldGear(user, data, chefIds) {
@@ -1518,8 +1993,14 @@
     findArea: findArea,
     analyzeOpenTeam: analyzeOpenTeam,
     chefGuestScore: chefGuestScore,
+    chefGuestBreakdown: chefGuestBreakdown,
     pickGoldRuneChefs: pickGoldRuneChefs,
     recommendGoldGear: recommendGoldGear,
+    recommendGatherGear: recommendGatherGear,
+    ownedEquipIds: ownedEquipIds,
+    ownedAmberIds: ownedAmberIds,
+    scoreEquipForGather: scoreEquipForGather,
+    scoreAmberForGather: scoreAmberForGather,
     isOpenChef: isOpenChef,
     teamPoints: teamPoints,
     teamDualPoints: teamDualPoints,

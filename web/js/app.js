@@ -123,8 +123,8 @@
         goldRuneGroups: [],
         goldRuneSelected: { '蒸馏杯': false, '恐怖利刃': false, '鼓风机': false, '千年煮鳖': false, '香烤鱼排': false, '五星炒果': false },
         goldRuneOwnedOnly: true,
-        goldRuneBonus: 400,
         goldRuneServings: 15,
+        goldRuneSlots: [null, null, null],
         goldRuneNames: ['蒸馏杯', '恐怖利刃', '鼓风机', '千年煮鳖', '香烤鱼排', '五星炒果'],
         repCol: {
           id: false, img: false, rarity: false, skills: false, skills_sim: false, condiment: false,
@@ -326,8 +326,20 @@
       goldRuneOptions: function () {
         return this.goldRuneRecommend.options;
       },
+      goldRuneBonus: function () {
+        var chefs = this.goldRuneSlots.map(this.chefById);
+        if (!chefs.some(Boolean)) {
+          return 0;
+        }
+        return E.analyzeOpenTeam(chefs).total.guest;
+      },
       goldRuneRate: function () {
         return E.goldGuestRate(this.goldRuneBonus, this.goldRuneServings);
+      },
+      goldRuneChefText: function () {
+        return this.goldRuneSlots.map(this.chefById).filter(Boolean).map(function (c) {
+          return c.name + ' 稀客' + (c.guestAppear || 0) + '%';
+        }).join('、');
       },
       chefsView: function () {
         var that = this;
@@ -476,16 +488,22 @@
         if (this.pickerKind === 'equip') {
           return this.equips.filter(function (item) {
             return matchKeyword([item.name, item.skill].join(' '), keyword);
+          }).sort(function (a, b) {
+            return (b.guestAppear || 0) - (a.guestAppear || 0);
           }).slice(0, 80).map(function (item) {
-            return { id: item.id, name: item.name, sub: item.skill };
+            var extra = item.guestAppear ? ('稀客+' + item.guestAppear + '% ') : '';
+            return { id: item.id, name: item.name, sub: extra + item.skill };
           });
         }
         if (this.pickerKind === 'amber') {
           var type = this.pickerSlot + 1;
           return this.ambers.filter(function (item) {
             return item.type === type && matchKeyword([item.name, item.skill].join(' '), keyword);
+          }).sort(function (a, b) {
+            return (b.guestAppear || 0) - (a.guestAppear || 0);
           }).map(function (item) {
-            return { id: item.id, name: item.name, sub: item.skill };
+            var extra = item.guestAppear ? ('稀客+' + item.guestAppear + '% ') : '';
+            return { id: item.id, name: item.name, sub: extra + item.skill };
           });
         }
         var used = {};
@@ -498,14 +516,27 @@
             }.bind(this));
           }.bind(this));
         }
+        if (this.pickerKind === 'gold') {
+          this.goldRuneSlots.forEach(function (id, idx) {
+            if (id && idx !== this.pickerIndex) {
+              used[id] = true;
+            }
+          }.bind(this));
+        }
         return this.ownedChefs.filter(function (chef) {
           if (used[chef.id]) {
             return false;
           }
           return matchKeyword([chef.name, chef.skill, chef.ultimateSkillShow].join(' '), keyword);
-        }).slice(0, 80).map(function (chef) {
-          return { id: chef.id, name: chef.name, sub: chef.ultimateSkillShow || chef.skill };
-        });
+        }).sort(function (a, b) {
+          if (this.pickerKind === 'gold') {
+            return (b.guestAppear || 0) - (a.guestAppear || 0);
+          }
+          return 0;
+        }.bind(this)).slice(0, 80).map(function (chef) {
+          var extra = this.pickerKind === 'gold' && chef.guestAppear ? ('稀客+' + chef.guestAppear + '% ') : '';
+          return { id: chef.id, name: chef.name, sub: extra + (chef.ultimateSkillShow || chef.skill) };
+        }.bind(this));
       },
       openPreviewHtml: function () {
         var chefs = this.currentOpen.slots.map(this.chefById);
@@ -729,7 +760,8 @@
             gatherGroup: this.gatherGroup,
             gatherArea: this.gatherArea,
             navId: this.navId,
-            chefCol: this.chefCol
+            chefCol: this.chefCol,
+            goldRuneSlots: this.goldRuneSlots
           }));
         } catch (err) {
           logError('persist', err);
@@ -765,6 +797,9 @@
           if (saved.chefCol) {
             this.chefCol = Object.assign(this.chefCol, saved.chefCol);
           }
+          if (saved.goldRuneSlots && saved.goldRuneSlots.length === 3) {
+            this.goldRuneSlots = saved.goldRuneSlots;
+          }
         } catch (err) {
           logError('restore', err);
         }
@@ -790,6 +825,7 @@
             creation: c.gather.creation,
             ultimateSkillShow: c.ultimateDesc,
             amberText: (c.amberNames || []).join('、'),
+            guestAppear: E.chefGuestScore(c).appear,
             checked: c.got
           });
         });
@@ -968,6 +1004,27 @@
         this.goldRuneNames.forEach(function (name) {
           that.$set(that.goldRuneSelected, name, false);
         });
+      },
+      recommendGoldChefs: function () {
+        var team = E.pickGoldRuneChefs(this.ownedChefs, 3);
+        this.goldRuneSlots = [0, 1, 2].map(function (i) {
+          return team[i] ? team[i].id : null;
+        });
+        this.persist();
+        this.toast(team.length ? ('已推荐 ' + team.map(function (c) { return c.name; }).join('、')) : '没有已有厨师');
+      },
+      recommendGoldGear: function () {
+        if (!this.user) {
+          this.toast('先导入个人数据');
+          return;
+        }
+        if (!this.goldRuneSlots.some(Boolean)) {
+          this.recommendGoldChefs();
+        }
+        E.recommendGoldGear(this.user, this.data, this.goldRuneSlots);
+        this.setUser(this.user);
+        this.saveUserToDisk(this.user);
+        this.toast('已给上场三人套上最高稀客厨具/遗玉');
       },
       changeGot: function (val, chefId) {
         if (!this.user) {
@@ -1444,9 +1501,10 @@
       },
       assignPicked: function (id) {
         if (this.pickerKind === 'equip' || this.pickerKind === 'amber') {
-          var chef = this.chefById(this.pickerKind === 'equip' || this.pickerKind === 'amber'
-            ? (this.navId === 5 ? this.currentGather[this.pickerIndex] : this.currentOpen.slots[this.pickerIndex])
-            : id);
+          var lineupId = this.navId === 13
+            ? this.goldRuneSlots[this.pickerIndex]
+            : (this.navId === 5 ? this.currentGather[this.pickerIndex] : this.currentOpen.slots[this.pickerIndex]);
+          var chef = this.chefById(lineupId);
           if (!chef || !this.user) {
             this.toast('先选择上场厨师');
             this.pickerShow = false;
@@ -1461,6 +1519,8 @@
           this.saveUserToDisk(this.user);
         } else if (this.pickerKind === 'open') {
           this.$set(this.currentOpen.slots, this.pickerIndex, id);
+        } else if (this.pickerKind === 'gold') {
+          this.$set(this.goldRuneSlots, this.pickerIndex, id);
         } else {
           this.$set(this.currentGather, this.pickerIndex, id);
         }

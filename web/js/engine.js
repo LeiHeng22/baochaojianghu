@@ -326,6 +326,55 @@
     };
   }
 
+  function guestRateFromEffects(effects) {
+    var appear = 0;
+    var antique = 0;
+    (effects || []).forEach(function (effect) {
+      if (!effect) {
+        return;
+      }
+      if (effect.type === 'GuestApearRate') {
+        appear += toInt(effect.value, 0);
+      }
+      if (effect.type === 'GuestAntiqueDropRate') {
+        antique += toInt(effect.value, 0);
+      }
+    });
+    return { appear: appear, antique: antique };
+  }
+
+  function chefGuestScore(chef) {
+    var personal = guestRateFromEffects(chef.personalEffects);
+    var ult = { appear: 0, antique: 0 };
+    if (chef.isPartialUlt || chef.isSelfUlt) {
+      ult = guestRateFromEffects(chef.ultimateEffects);
+    }
+    var extra = guestRateFromEffects((chef.equipEffects || []).concat(chef.amberEffects || []));
+    return {
+      appear: personal.appear + ult.appear + extra.appear,
+      antique: personal.antique + ult.antique + extra.antique
+    };
+  }
+
+  function pickGoldRuneChefs(chefs, count) {
+    return (chefs || []).slice().sort(function (a, b) {
+      var as = chefGuestScore(a).appear;
+      var bs = chefGuestScore(b).appear;
+      if (bs !== as) {
+        return bs - as;
+      }
+      return (b.rarity || 0) - (a.rarity || 0);
+    }).slice(0, count || 3);
+  }
+
+  function skillIdsGuestAppear(skillMap, skillIds) {
+    var appear = 0;
+    (skillIds || []).forEach(function (sid) {
+      appear += guestRateFromEffects(effectsOfSkill(skillMap, sid)).appear;
+    });
+    return appear;
+  }
+
   function expectation(chef, typeKey) {
     var gain = chef.gain.base + (chef.gain[typeKey] || 0);
     return gain + (chef.critChance / 100) * chef.critMaterial;
@@ -1023,6 +1072,7 @@
         origin: String(item.origin || ''),
         desc: String(item.desc || ''),
         skill: skills.join('；'),
+        guestAppear: skillIdsGuestAppear(skillMap, item.skill),
         wornBy: worn[item.amberId] || worn[String(item.amberId)] || [],
         img: imageUrl('amber', item.galleryId)
       };
@@ -1043,10 +1093,48 @@
         rarity: toInt(item.rarity, 0),
         origin: String(item.origin || ''),
         skill: skills.join('；'),
+        guestAppear: skillIdsGuestAppear(skillMap, item.skill),
         wornBy: worn[item.equipId] || worn[String(item.equipId)] || [],
         img: imageUrl('equip', item.galleryId)
       };
     });
+  }
+
+  function recommendGoldGear(user, data, chefIds) {
+    var skillMap = skillMapOf(data);
+    var equips = (data.equips || []).map(function (item) {
+      return { id: Number(item.equipId), guestAppear: skillIdsGuestAppear(skillMap, item.skill) };
+    }).filter(function (e) { return e.guestAppear > 0; }).sort(function (a, b) {
+      return b.guestAppear - a.guestAppear;
+    });
+    var ambers = (data.ambers || []).map(function (item) {
+      return {
+        id: Number(item.amberId),
+        type: Number(item.type),
+        guestAppear: skillIdsGuestAppear(skillMap, item.skill),
+        amp: toInt(item.amplification, 0)
+      };
+    }).filter(function (a) { return a.guestAppear > 0; }).sort(function (a, b) {
+      return b.guestAppear - a.guestAppear || b.amp - a.amp;
+    });
+    var usedEquip = {};
+    var usedAmber = {};
+    (chefIds || []).forEach(function (chefId) {
+      if (!chefId) {
+        return;
+      }
+      var equip = equips.find(function (e) { return !usedEquip[e.id]; });
+      if (equip) {
+        setChefEquip(user, chefId, equip.id);
+        usedEquip[equip.id] = true;
+      }
+      var amber = ambers.find(function (a) { return !usedAmber[a.id]; });
+      if (amber) {
+        setChefAmber(user, chefId, amber.type - 1, amber.id);
+        usedAmber[amber.id] = true;
+      }
+    });
+    return user;
   }
 
   function setChefAmber(user, chefId, slotIndex, amberId) {
@@ -1429,6 +1517,9 @@
     GOLD_RUNE_PLAN: GOLD_RUNE_PLAN,
     findArea: findArea,
     analyzeOpenTeam: analyzeOpenTeam,
+    chefGuestScore: chefGuestScore,
+    pickGoldRuneChefs: pickGoldRuneChefs,
+    recommendGoldGear: recommendGoldGear,
     isOpenChef: isOpenChef,
     teamPoints: teamPoints,
     teamDualPoints: teamDualPoints,

@@ -596,30 +596,63 @@
             <span class="checkbox" :class="goldRuneOwnedOnly ? 'active' : ''" @click="goldRuneOwnedOnly = !goldRuneOwnedOnly">只看已有</span>
           </div>
           <div class="contain" style="margin-top: 10px;">
-            <div class="prepend-input append-input">
-              <div class="input-box">
-                <div class="prepend">贵客加成</div>
-                <input type="number" v-model.lazy="goldRuneBonus">
-                <div class="append">%</div>
-              </div>
-            </div>
             <div class="prepend-input">
               <div class="input-box">
                 <div class="prepend">份数</div>
-                <input type="number" v-model.lazy="goldRuneServings">
+                <input type="number" v-model.number="goldRuneServings">
               </div>
             </div>
           </div>
-          <div class="p">5火金符文估测贵客率：{{ goldRuneRate }}%（玩家测试，有误差）</div>
+          <div class="p">上场贵客加成 <b>{{ goldRuneBonus }}%</b>　5火金符文估测贵客率 <b>{{ goldRuneRate }}%</b>（换厨/厨具/遗玉即时变，玩家测试有误差）</div>
           <div class="btn-box" style="padding-left: 3px;">
             <span class="btn" @click="selectAllGoldRunes">全选符文</span>
+            <span class="btn" @click="recommendGoldChefs">推荐贵客厨</span>
+            <span class="btn" @click="recommendGoldGear">套上推荐厨具遗玉</span>
             <span class="btn load" @click="clearGoldRunes">清空勾选</span>
+          </div>
+          <div class="cal-contain" style="margin-top: 10px;">
+            <div class="chef-box" v-for="(slot, index) in goldRuneSlots" :key="'gold-'+index">
+              <div class="chef" :class="calFocus==='Chef_'+index ? 'focus' : ''" @click="openPicker('gold', index)">
+                <div v-if="chefById(slot)" class="show">
+                  <div class="show-chef">
+                    <div class="name-img">
+                      <span class="name">{{ chefById(slot).name }}</span>
+                      <div class="img icon-chef" :class="'chef_' + chefById(slot).id">
+                        <span v-show="chefById(slot).isPartialUlt || chefById(slot).isSelfUlt" class="ultimate">满</span>
+                      </div>
+                    </div>
+                    <div class="skill-box">
+                      <div><span class="label">稀客</span><span class="val">{{ chefById(slot).guestAppear }}%</span></div>
+                    </div>
+                  </div>
+                  <div class="show-condiment">{{ chefById(slot).skillDesc }}</div>
+                </div>
+                <div class="chef-empty" v-else>
+                  <i class="el-icon-plus"></i>
+                  <span>选择厨师</span>
+                </div>
+              </div>
+              <div class="equip" :class="calFocus==='Equip_'+index ? 'focus' : ''" @click="openPicker('equip', index)">
+                <div class="show" v-if="chefById(slot) && chefById(slot).equipName"><span class="name">{{ chefById(slot).equipName }}</span></div>
+                <div class="equip-empty" v-else><i class="el-icon-plus"></i></div>
+              </div>
+              <div class="rep-box">
+                <div class="rep" v-for="(amber, ai) in (chefById(slot) && chefById(slot).amberSlots || [{color:'红'},{color:'绿'},{color:'蓝'}])" :key="ai" @click="openPicker('amber', index, ai)">
+                  <div class="show" v-if="amber.id">
+                    <div class="img icon-amber" :class="'amber_' + amber.id"></div>
+                    <div class="rep-detail">{{ amber.name }}</div>
+                  </div>
+                  <div class="rep-empty" v-else><i class="el-icon-plus"></i></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="title">推荐方案</div>
         <div class="hr"></div>
         <div class="box-body">
-          <div class="p" v-if="!goldRunePlan.length">先勾选要刷的金符文。</div>
+          <div class="p" v-if="goldRuneChefText">推荐厨师：{{ goldRuneChefText }}</div>
+          <div class="p" v-if="!goldRunePlan.length">先勾选要刷的金符文，并点【推荐贵客厨】。</div>
           <el-table v-else :data="goldRunePlan" style="width: 100%" size="mini">
             <el-table-column prop="rune" label="符文" width="90"></el-table-column>
             <el-table-column prop="name" label="菜谱" min-width="110"></el-table-column>
@@ -870,7 +903,7 @@
         </div>
         <div class="box-body">
           <div class="contain-title">金符文</div>
-          <div class="p"><span class="add"><i class="el-icon-plus"></i> 本站新增</span> 按无冲突金色符文表（染井、桑阳，2026-06-09）勾选要刷的符文，推荐不抢贵客的菜谱。</div>
+          <div class="p"><span class="add"><i class="el-icon-plus"></i> 本站新增</span> 按无冲突金色符文表勾选要刷的符文，推荐菜谱和不抢贵客的上场厨师，可换厨具/遗玉，贵客率即时重算。</div>
           <div class="p">贵客率是玩家测试的 5 火金符文估测，会有误差。</div>
         </div>
         <div class="box-body">

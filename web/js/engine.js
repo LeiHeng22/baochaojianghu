@@ -52,6 +52,23 @@
     Material_Creation: 'creation'
   };
   var TECH_TYPES = { Stirfry: '炒', Boil: '煮', Knife: '切', Fry: '炸', Bake: '烤', Steam: '蒸' };
+  var IMAGE_BASE = 'https://h5.baochaojianghu.com/images/';
+  var AMBER_COLORS = [
+    { type: 1, color: '红', origin: '太初赤玉' },
+    { type: 2, color: '绿', origin: '太初碧玉' },
+    { type: 3, color: '蓝', origin: '太初青玉' }
+  ];
+
+  function imageUrl(kind, galleryId) {
+    if (!galleryId && galleryId !== 0) {
+      return '';
+    }
+    var id = String(galleryId);
+    while (id.length < 3) {
+      id = '0' + id;
+    }
+    return IMAGE_BASE + kind + '/' + id + '.png';
+  }
 
   function toInt(value, fallback) {
     var n = Number(value);
@@ -191,17 +208,32 @@
     }
 
     var amberNames = [];
-    amberIds.forEach(function (amberId) {
-      var id = toInt(amberId, 0);
+    var amberEffects = [];
+    var amberSlots = AMBER_COLORS.map(function (color, index) {
+      var id = toInt(amberIds[index], 0);
+      var slot = {
+        type: color.type,
+        color: color.color,
+        origin: color.origin,
+        id: id,
+        name: '',
+        desc: '',
+        img: '',
+        galleryId: ''
+      };
       if (!id) {
-        return;
+        return slot;
       }
       var amber = (data.ambers || []).find(function (a) { return Number(a.amberId) === id; });
       if (!amber) {
-        return;
+        return slot;
       }
+      slot.name = amber.name;
+      slot.galleryId = amber.galleryId;
+      slot.img = imageUrl('amber', amber.galleryId);
       amberNames.push(amber.name);
       var levelIndex = Math.max(0, diskLv - 1);
+      var descs = [];
       (amber.skill || []).forEach(function (sid) {
         var skill = skillMap[Number(sid)];
         if (!skill) {
@@ -211,21 +243,34 @@
           var copy = {};
           Object.keys(effect).forEach(function (k) { copy[k] = effect[k]; });
           copy.value = toInt(effect.value, 0) + levelIndex * toInt(amber.amplification, 0);
+          amberEffects.push(copy);
           return copy;
         });
         applyEffects(target, scaled);
+        if (skill.desc) {
+          descs.push(String(skill.desc).replace(/_/g, String(toInt(skill.effect && skill.effect[0] && skill.effect[0].value, 0) + levelIndex * toInt(amber.amplification, 0))));
+        }
       });
+      slot.desc = descs.join('；') || String(amber.desc || '');
+      return slot;
     });
 
     var equipName = '';
     var equipDesc = '';
+    var equipEffects = [];
+    var equipImg = '';
+    var equipGalleryId = '';
     if (equipId) {
       var equip = (data.equips || []).find(function (e) { return Number(e.equipId) === Number(equipId); });
       if (equip) {
         equipName = equip.name;
+        equipGalleryId = equip.galleryId;
+        equipImg = imageUrl('equip', equip.galleryId);
         var descs = [];
         (equip.skill || []).forEach(function (sid) {
-          applyEffects(target, effectsOfSkill(skillMap, sid));
+          var effects = effectsOfSkill(skillMap, sid);
+          equipEffects = equipEffects.concat(effects);
+          applyEffects(target, effects);
           var desc = descOfSkill(skillMap, sid);
           if (desc) {
             descs.push(desc);
@@ -268,8 +313,15 @@
       },
       diskLv: diskLv,
       amberNames: amberNames,
+      amberSlots: amberSlots,
+      amberEffects: amberEffects,
+      equipId: equipId ? Number(equipId) : 0,
       equipName: equipName,
       equipDesc: equipDesc,
+      equipEffects: equipEffects,
+      equipImg: equipImg,
+      equipGalleryId: equipGalleryId,
+      img: imageUrl('chef', raw.galleryId || chefId),
       tags: raw.tags || []
     };
   }
@@ -596,6 +648,10 @@
       total.openTime += personalOpen.openTime;
       total.gold += personalOpen.gold;
       total.guest += personalOpen.guest;
+      var extra = summarizeEffects((chef.equipEffects || []).concat(chef.amberEffects || []), 'Any');
+      total.openTime += extra.openTime;
+      total.gold += extra.gold;
+      total.guest += extra.guest;
       var nextEffects = (chef.ultimateEffects || []).filter(function (e) { return effectCondition(e) === 'Next'; });
       if (chef.isPartialUlt && nextEffects.length && index < 2) {
         nextBuffs[index + 1] = chef.name + ' → ' + (slots[index + 1] ? slots[index + 1].name : '空位') + '：' + chef.ultimateDesc;
@@ -802,6 +858,127 @@
     };
   }
 
+  function wornAmberMap(data, user) {
+    var worn = {};
+    var chefMap = {};
+    (data.chefs || []).forEach(function (c) {
+      chefMap[Number(c.chefId)] = c.name;
+    });
+    Object.keys(user.chefAmber || {}).forEach(function (chefId) {
+      (user.chefAmber[chefId] || []).forEach(function (amberId) {
+        var id = toInt(amberId, 0);
+        if (!id) {
+          return;
+        }
+        if (!worn[id]) {
+          worn[id] = [];
+        }
+        var name = chefMap[Number(chefId)];
+        if (name && worn[id].indexOf(name) < 0) {
+          worn[id].push(name);
+        }
+      });
+    });
+    return worn;
+  }
+
+  function wornEquipMap(data, user) {
+    var worn = {};
+    var chefMap = {};
+    (data.chefs || []).forEach(function (c) {
+      chefMap[Number(c.chefId)] = c.name;
+    });
+    Object.keys(user.chefEquip || {}).forEach(function (chefId) {
+      var id = toInt(user.chefEquip[chefId], 0);
+      if (!id) {
+        return;
+      }
+      if (!worn[id]) {
+        worn[id] = [];
+      }
+      var name = chefMap[Number(chefId)];
+      if (name && worn[id].indexOf(name) < 0) {
+        worn[id].push(name);
+      }
+    });
+    return worn;
+  }
+
+  function buildAmberCatalog(data, user) {
+    var skillMap = skillMapOf(data);
+    var worn = wornAmberMap(data, user || {});
+    return (data.ambers || []).map(function (item) {
+      var skills = (item.skill || []).map(function (sid) {
+        return descOfSkill(skillMap, sid);
+      }).filter(Boolean);
+      return {
+        id: Number(item.amberId),
+        galleryId: item.galleryId,
+        name: item.name,
+        type: Number(item.type),
+        color: (AMBER_COLORS[Number(item.type) - 1] || {}).color || '',
+        rarity: toInt(item.rarity, 0),
+        amplification: toInt(item.amplification, 0),
+        origin: String(item.origin || ''),
+        desc: String(item.desc || ''),
+        skill: skills.join('；'),
+        wornBy: worn[item.amberId] || worn[String(item.amberId)] || [],
+        img: imageUrl('amber', item.galleryId)
+      };
+    });
+  }
+
+  function buildEquipCatalog(data, user) {
+    var skillMap = skillMapOf(data);
+    var worn = wornEquipMap(data, user || {});
+    return (data.equips || []).map(function (item) {
+      var skills = (item.skill || []).map(function (sid) {
+        return descOfSkill(skillMap, sid);
+      }).filter(Boolean);
+      return {
+        id: Number(item.equipId),
+        galleryId: item.galleryId,
+        name: item.name,
+        rarity: toInt(item.rarity, 0),
+        origin: String(item.origin || ''),
+        skill: skills.join('；'),
+        wornBy: worn[item.equipId] || worn[String(item.equipId)] || [],
+        img: imageUrl('equip', item.galleryId)
+      };
+    });
+  }
+
+  function setChefAmber(user, chefId, slotIndex, amberId) {
+    user = user || {};
+    user.chefAmber = user.chefAmber || {};
+    var slots = (user.chefAmber[chefId] || [0, 0, 0]).slice();
+    while (slots.length < 3) {
+      slots.push(0);
+    }
+    slots[slotIndex] = toInt(amberId, 0);
+    user.chefAmber[chefId] = slots;
+    return user;
+  }
+
+  function setChefEquip(user, chefId, equipId) {
+    user = user || {};
+    user.chefEquip = user.chefEquip || {};
+    var id = toInt(equipId, 0);
+    if (id) {
+      user.chefEquip[chefId] = id;
+    } else {
+      delete user.chefEquip[chefId];
+    }
+    return user;
+  }
+
+  function setChefDiskLv(user, chefId, level) {
+    user = user || {};
+    user.chefDiskLv = user.chefDiskLv || {};
+    user.chefDiskLv[chefId] = Math.max(1, Math.min(5, toInt(level, 1)));
+    return user;
+  }
+
   return {
     PEOPLE: PEOPLE,
     OPEN_PEOPLE: OPEN_PEOPLE,
@@ -821,6 +998,13 @@
     teamPoints: teamPoints,
     teamDualPoints: teamDualPoints,
     applyOfficialArchive: applyOfficialArchive,
-    buildUltimateFromChefUlt: buildUltimateFromChefUlt
+    buildUltimateFromChefUlt: buildUltimateFromChefUlt,
+    imageUrl: imageUrl,
+    AMBER_COLORS: AMBER_COLORS,
+    buildAmberCatalog: buildAmberCatalog,
+    buildEquipCatalog: buildEquipCatalog,
+    setChefAmber: setChefAmber,
+    setChefEquip: setChefEquip,
+    setChefDiskLv: setChefDiskLv
   };
 });
